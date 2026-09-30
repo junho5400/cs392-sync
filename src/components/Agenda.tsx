@@ -13,8 +13,8 @@ const MOVES: Record<string, [day: number, row: number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
 };
-const STACK = 4;
-const SPREAD = 5;
+const STACK = 3;
+const SPREAD = 4;
 
 /** One card per date, one row per slot: count and who is free always visible. */
 export const Agenda = ({ event, counts, total, mine, highlight, onPaint, onHover }: SurfaceProps) => {
@@ -40,7 +40,7 @@ export const Agenda = ({ event, counts, total, mine, highlight, onPaint, onHover
 
   return (
     <div
-      className="grid select-none gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(168px,1fr))]"
+      className="grid select-none gap-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] lg:grid-flow-col lg:auto-cols-[minmax(150px,1fr)] lg:grid-cols-none lg:overflow-x-auto"
       onPointerDown={(e) => {
         const key = cellAt(e);
         // Touch paints only from the toggle column so the rest of the row still scrolls the page.
@@ -147,9 +147,9 @@ export const Agenda = ({ event, counts, total, mine, highlight, onPaint, onHover
                         key={n}
                         animate={{ x: spread ? i * SPREAD : 0 }}
                         transition={CARD_SPRING}
-                        className={`rounded-full bg-surface ${i ? '-ml-1.5' : ''}`}
+                        className={`rounded-full bg-surface ${i ? '-ml-1' : ''}`}
                       >
-                        <Avatar name={n} className="size-4 text-[7px]" />
+                        <Avatar name={n} short className="size-4 text-[8px]" />
                       </motion.span>
                     ))}
                     {names.length > STACK && (

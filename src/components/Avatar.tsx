@@ -14,16 +14,18 @@ const tint = (name: string) => TINTS[[...name].reduce((h, c) => h + c.charCodeAt
 interface Props {
   name: string;
   you?: boolean;
+  /** One letter, for tight stacks. */
+  short?: boolean;
   className?: string;
 }
 
-export const Avatar = ({ name, you = false, className = 'size-5 text-[9px]' }: Props) => (
+export const Avatar = ({ name, you = false, short = false, className = 'size-5 text-[9px]' }: Props) => (
   <span
     aria-hidden="true"
     className={`grid shrink-0 place-items-center rounded-full font-semibold ring-2 ring-surface ${
       you ? 'bg-brand text-brand-ink' : tint(name)
     } ${className}`}
   >
-    {initials(name)}
+    {initials(name).slice(0, short ? 1 : 2)}
   </span>
 );

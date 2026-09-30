@@ -87,7 +87,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
     <motion.section
       layoutId="sheet"
       transition={CARD_SPRING}
-      className="mx-auto flex w-full max-w-[1120px] flex-col overflow-hidden rounded-2xl bg-surface shadow-card lg:grid lg:grid-cols-[232px_minmax(0,1fr)_224px] lg:grid-rows-[auto_1fr]"
+      className="mx-auto flex w-full max-w-[1120px] flex-col overflow-hidden rounded-2xl bg-surface shadow-card lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:grid-rows-[auto_auto_1fr]"
     >
       <motion.div
         initial={{ opacity: 0 }}
@@ -119,7 +119,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="order-2 flex min-w-0 flex-col gap-2 border-t border-dashed border-line p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0"
+        className="order-2 flex min-w-0 flex-col gap-2 border-t border-dashed border-line p-4 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:border-t-0"
       >
         <div className="flex min-h-7 items-center justify-between gap-2">
           <p className="text-[12px] text-ink-2">
@@ -159,7 +159,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="order-3 flex flex-col gap-4 border-t border-dashed border-line p-4 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:border-t-0 lg:border-l"
+        className="order-3 flex flex-col gap-4 border-t border-dashed border-line p-4 lg:col-start-1 lg:row-start-2 lg:border-r"
       >
         <BestTimes windows={bestWindows(event, counts)} total={total} onHover={setHoverWindow} />
         <div className="flex items-center gap-1.5 text-[11px] tabular-nums text-ink-3">
@@ -176,7 +176,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="order-4 border-t border-dashed border-line p-4 lg:col-start-1 lg:row-start-2 lg:border-r"
+        className="order-4 border-t border-dashed border-line p-4 lg:col-start-1 lg:row-start-3 lg:border-r"
       >
         <Roster
           people={people}
