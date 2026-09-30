@@ -2,9 +2,9 @@ import { useEffect, useReducer, useState } from 'react';
 import { motion } from 'motion/react';
 import { BestTimes } from './BestTimes';
 import { Icon } from './Icon';
+import { RangeRows } from './RangeRows';
 import { Roster } from './Roster';
 import { ShareButton } from './ShareButton';
-import { Surface } from './Surface';
 import type { Person, SyncEvent } from '../types';
 import { CARD_SPRING } from '../utilities/motion';
 import {
@@ -123,7 +123,8 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
       >
         <div className="flex h-7 items-center justify-between gap-2">
           <p className="text-[12px] text-ink-2">
-            <span className="font-medium text-ink">Drag to mark when you're free.</span> Drag over marks to clear.
+            <span className="font-medium text-ink">Drag on a row to add a bar.</span>{' '}
+            <span className="max-sm:hidden">Drag its edges to resize.</span>
           </p>
           <div className="flex shrink-0 items-center">
             <button
@@ -144,7 +145,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
             </button>
           </div>
         </div>
-        <Surface
+        <RangeRows
           event={event}
           counts={counts}
           total={total}
