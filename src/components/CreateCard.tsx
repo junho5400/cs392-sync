@@ -1,0 +1,104 @@
+import { useState } from 'react';
+import { motion } from 'motion/react';
+import { Icon } from './Icon';
+import { MonthPicker } from './MonthPicker';
+import type { SyncEvent } from '../types';
+import { STEP, TIME_ZONE, fmtTime } from '../utilities/slots';
+import { CARD_SPRING } from '../utilities/motion';
+
+const OPTIONS = Array.from({ length: 1440 / STEP + 1 }, (_, i) => i * STEP);
+
+interface Props {
+  onCreate: (event: SyncEvent) => void;
+  onSample: () => void;
+}
+
+const TimeSelect = ({ label, value, options, onChange }: {
+  label: string;
+  value: number;
+  options: number[];
+  onChange: (v: number) => void;
+}) => (
+  <select
+    aria-label={label}
+    value={value}
+    onChange={(e) => onChange(Number(e.target.value))}
+    className="h-7 flex-1 cursor-pointer rounded-lg border border-line-strong bg-surface px-2 text-[12.5px] font-medium text-ink-1 shadow-btn outline-none transition-colors hover:border-ink-3 focus-visible:border-ink"
+  >
+    {options.map((m) => (
+      <option key={m} value={m}>
+        {fmtTime(m)}
+      </option>
+    ))}
+  </select>
+);
+
+export const CreateCard = ({ onCreate, onSample }: Props) => {
+  const [title, setTitle] = useState('');
+  const [dates, setDates] = useState<Set<string>>(new Set());
+  const [start, setStart] = useState(9 * 60);
+  const [end, setEnd] = useState(17 * 60);
+  const ready = dates.size > 0;
+
+  const create = () =>
+    ready && onCreate({ title: title.trim() || 'Untitled event', dates: [...dates].sort(), start, end });
+
+  return (
+    <motion.section
+      layoutId="sheet"
+      transition={CARD_SPRING}
+      className="mx-auto grid w-full max-w-[720px] overflow-hidden rounded-2xl bg-surface shadow-card md:grid-cols-[260px_1fr]"
+    >
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex flex-col gap-5 border-b border-dashed border-line p-5 md:border-r md:border-b-0"
+      >
+        <div>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.1em] text-ink-3">New event</p>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && create()}
+            placeholder="Event name"
+            aria-label="Event name"
+            className="w-full bg-transparent text-[18px] font-semibold tracking-tight text-ink-1 outline-none placeholder:text-ink-3"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[12px] font-medium text-ink-2">Between</p>
+          <div className="flex items-center gap-1.5">
+            <TimeSelect label="Earliest time" value={start} options={OPTIONS.slice(0, -1)} onChange={(v) => { setStart(v); if (v >= end) setEnd(v + STEP); }} />
+            <span className="text-ink-3">–</span>
+            <TimeSelect label="Latest time" value={end} options={OPTIONS.slice(1)} onChange={(v) => { setEnd(v); if (v <= start) setStart(v - STEP); }} />
+          </div>
+          <p className="flex items-center gap-1.5 text-[12px] text-ink-2">
+            <Icon name="globe" className="size-3" /> {TIME_ZONE.replace('_', ' ')}
+          </p>
+        </div>
+
+        <div className="mt-auto flex flex-col gap-2">
+          <p className={`text-[12px] transition-colors ${ready ? 'text-ink-2' : 'font-medium text-ink-1'}`}>
+            {ready ? `${dates.size} date${dates.size > 1 ? 's' : ''} picked` : 'Pick dates on the calendar — drag to pick many'}
+          </p>
+          <button
+            disabled={!ready}
+            onClick={create}
+            className="h-8 rounded-lg bg-brand text-[12.5px] font-medium text-brand-ink transition-[transform,opacity] duration-150 active:scale-[0.96] disabled:opacity-30"
+          >
+            Create event
+          </button>
+          <button onClick={onSample} className="h-7 text-[12px] text-ink-2 transition-colors hover:text-ink">
+            or open a sample event
+          </button>
+        </div>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5">
+        <MonthPicker selected={dates} onChange={setDates} />
+      </motion.div>
+    </motion.section>
+  );
+};
