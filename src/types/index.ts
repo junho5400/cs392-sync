@@ -23,5 +23,7 @@ export interface SurfaceProps {
   /** Slots to spotlight: a hovered person or best time. */
   highlight: Set<string> | null;
   onPaint: (keys: string[], on: boolean) => void;
+  /** Replace all of your slots at once (one undo step). */
+  onReplace: (slots: Set<string>) => void;
   onHover: (key: string | null) => void;
 }

@@ -30,11 +30,16 @@ interface Mine {
   history: Set<string>[];
 }
 
-type Action = { type: 'paint'; keys: string[]; on: boolean } | { type: 'merge'; slots: Set<string> } | { type: 'undo' };
+type Action =
+  | { type: 'paint'; keys: string[]; on: boolean }
+  | { type: 'merge'; slots: Set<string> }
+  | { type: 'set'; slots: Set<string> }
+  | { type: 'undo' };
 
 const reduce = ({ slots, history }: Mine, a: Action): Mine => {
   if (a.type === 'undo') return history.length ? { slots: history[history.length - 1], history: history.slice(0, -1) } : { slots, history };
-  const next = a.type === 'paint' ? paint(slots, a.keys, a.on) : new Set([...slots, ...a.slots]);
+  const next =
+    a.type === 'paint' ? paint(slots, a.keys, a.on) : a.type === 'set' ? a.slots : new Set([...slots, ...a.slots]);
   return { slots: next, history: [...history.slice(-49), slots] };
 };
 
@@ -146,6 +151,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
           mine={mine}
           highlight={highlight}
           onPaint={(keys, on) => dispatch({ type: 'paint', keys, on })}
+          onReplace={(slots) => dispatch({ type: 'set', slots })}
           onHover={setHoverSlot}
         />
       </motion.div>
