@@ -1,4 +1,4 @@
-import { bestWindows, countMap, heat, paint, rectKeys, slotKey } from './slots';
+import { bestWindows, countMap, extendPath, heat, paint, rectKeys, slotKey } from './slots';
 import type { SyncEvent } from '../types';
 
 const event: SyncEvent = { title: 'T', dates: ['2026-10-05', '2026-10-06'], start: 540, end: 660 };
@@ -16,6 +16,14 @@ test('countMap lists who is free per slot', () => {
 test('rectKeys covers the rectangle in any drag direction', () => {
   const keys = rectKeys(event, k('2026-10-06', 600), k('2026-10-05', 570));
   expect(keys).toEqual([k('2026-10-05', 570), k('2026-10-05', 600), k('2026-10-06', 570), k('2026-10-06', 600)]);
+});
+
+test('extendPath fills skipped rows, rewinds on revisit, and crosses days', () => {
+  const mon = (...ms: number[]) => ms.map((m) => k('2026-10-05', m));
+  const down = extendPath(event, mon(570), k('2026-10-05', 630));
+  expect(down).toEqual(mon(570, 600, 630));
+  expect(extendPath(event, down, k('2026-10-05', 540))).toEqual(mon(570, 540));
+  expect(extendPath(event, down, k('2026-10-06', 600))).toEqual([...down, k('2026-10-06', 600)]);
 });
 
 test('paint marks and erases', () => {

@@ -1,10 +1,10 @@
 import { useEffect, useReducer, useState } from 'react';
 import { motion } from 'motion/react';
+import { Agenda } from './Agenda';
 import { BestTimes } from './BestTimes';
 import { Icon } from './Icon';
 import { Roster } from './Roster';
 import { ShareButton } from './ShareButton';
-import { Surface } from './Surface';
 import type { Person, SyncEvent } from '../types';
 import { CARD_SPRING } from '../utilities/motion';
 import {
@@ -121,9 +121,9 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
         animate={{ opacity: 1 }}
         className="order-2 flex min-w-0 flex-col gap-2 border-t border-dashed border-line p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0"
       >
-        <div className="flex h-7 items-center justify-between gap-2">
+        <div className="flex min-h-7 items-center justify-between gap-2">
           <p className="text-[12px] text-ink-2">
-            <span className="font-medium text-ink">Drag to mark when you're free.</span> Drag over marks to clear.
+            <span className="font-medium text-ink">Tap or drag down the boxes to mark when you're free.</span> Start on a mark to clear.
           </p>
           <div className="flex shrink-0 items-center">
             <button
@@ -144,7 +144,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
             </button>
           </div>
         </div>
-        <Surface
+        <Agenda
           event={event}
           counts={counts}
           total={total}

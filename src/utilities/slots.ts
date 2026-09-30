@@ -31,6 +31,15 @@ export const rectKeys = (event: SyncEvent, a: string, b: string) => {
     .flatMap((d) => times(event).filter((m) => m >= m0 && m <= m1).map((m) => slotKey(d, m)));
 };
 
+/** Extends a drag path to `key`: fills rows skipped in the same day, and rewinds when a row is revisited. */
+export const extendPath = (event: SyncEvent, path: string[], key: string) => {
+  const last = parseKey(path[path.length - 1]);
+  const next = parseKey(key);
+  const steps = last.date === next.date ? rectKeys(event, path[path.length - 1], key) : [key];
+  if (next.min < last.min) steps.reverse();
+  return steps.reduce((p, k) => (p.includes(k) ? p.slice(0, p.indexOf(k) + 1) : [...p, k]), path);
+};
+
 export const paint = (slots: Set<string>, keys: string[], on: boolean) => {
   const next = new Set(slots);
   for (const k of keys) {
