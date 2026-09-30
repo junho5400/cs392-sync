@@ -93,7 +93,7 @@ export const Roster = ({ people, myName, mineCount, free, total, onSaveName, onC
             exit={{ opacity: 0, height: 0 }}
             className="px-1.5 text-[11.5px] text-accent"
           >
-            Add your name to save your {mineCount} slot{mineCount > 1 ? 's' : ''}.
+            Add your name to save your times.
           </motion.p>
         )}
       </AnimatePresence>
