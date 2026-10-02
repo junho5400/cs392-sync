@@ -2,9 +2,12 @@ import type { Person, SyncEvent } from '../types';
 import { STEP, slotKey } from '../utilities/slots';
 
 // ponytail: in-memory sample standing in for the backend; replace with a Firestore service.
+const dates = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'];
+
 export const sampleEvent: SyncEvent = {
+  kind: 'dates',
   title: 'Team sync',
-  dates: ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'],
+  dates,
   start: 9 * 60,
   end: 17 * 60,
 };
@@ -16,7 +19,7 @@ const person = (name: string, spans: Span[]): Person => ({
   slots: new Set(
     spans.flatMap(([day, from, to]) =>
       Array.from({ length: ((to - from) * 60) / STEP }, (_, i) =>
-        slotKey(sampleEvent.dates[day], from * 60 + i * STEP),
+        slotKey(dates[day], from * 60 + i * STEP),
       ),
     ),
   ),

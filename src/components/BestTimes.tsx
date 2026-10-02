@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { CARD_SPRING, ENTER } from '../utilities/motion';
-import { fmtDay, fmtTime, type Window } from '../utilities/slots';
+import { fmtCol, fmtTime, type Window } from '../utilities/slots';
 
 interface Props {
   windows: Window[];
@@ -14,7 +14,6 @@ export const BestTimes = ({ windows, total, onHover }: Props) => (
     {!windows.length && <p className="text-[12px] text-ink-3">Mark times to see overlaps.</p>}
     <AnimatePresence mode="popLayout" initial={false}>
       {windows.map((w, i) => {
-        const d = fmtDay(w.date);
         return (
           <motion.button
             key={`${w.date}${w.start}${w.end}${w.names.length}`}
@@ -30,7 +29,7 @@ export const BestTimes = ({ windows, total, onHover }: Props) => (
           >
             <span className="min-w-0 flex-1">
               <span className="block text-[12.5px] font-medium text-ink">
-                {d.dow}, {d.mon} {d.day}
+                {fmtCol(w.date)}
               </span>
               <span className="block text-[12px] tabular-nums text-ink-2">
                 {fmtTime(w.start)} – {fmtTime(w.end)}

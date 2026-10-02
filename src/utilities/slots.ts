@@ -4,6 +4,39 @@ export const STEP = 30;
 
 export const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+export const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Grid columns: ISO dates in date mode, `dow:N` ids in weekday mode (Mon-first). */
+export const columns = (event: SyncEvent): string[] =>
+  event.kind === 'dates'
+    ? event.dates
+    : [...event.days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => `dow:${d}`);
+
+export const dowOf = (col: string) => Number(col.slice(4));
+
+/** Header lines per column: dates show dow/day-number, weekdays show Every/day-name. */
+export const colHead = (col: string): { top: string; bottom: string } => {
+  if (!col.startsWith('dow:')) {
+    const d = fmtDay(col);
+    return { top: d.dow, bottom: String(d.day) };
+  }
+  return { top: 'Every', bottom: DOW_SHORT[dowOf(col)] };
+};
+
+/** One-line column label for aria text and best-times rows. */
+export const fmtCol = (col: string): string => {
+  if (!col.startsWith('dow:')) {
+    const d = fmtDay(col);
+    return `${d.dow}, ${d.mon} ${d.day}`;
+  }
+  return `Every ${DOW_SHORT[dowOf(col)]}`;
+};
+
+export const fmtEventRange = (event: SyncEvent): string =>
+  event.kind === 'dates'
+    ? fmtRange(event.dates)
+    : `Every ${[...event.days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DOW_SHORT[d]).join(', ')}`;
+
 export const slotKey = (date: string, min: number) => `${date}|${min}`;
 
 export const parseKey = (key: string) => {
@@ -24,9 +57,10 @@ export const countMap = (people: Person[]) => {
 export const rectKeys = (event: SyncEvent, a: string, b: string) => {
   const A = parseKey(a);
   const B = parseKey(b);
-  const [d0, d1] = [event.dates.indexOf(A.date), event.dates.indexOf(B.date)].sort((x, y) => x - y);
+  const cols = columns(event);
+  const [d0, d1] = [cols.indexOf(A.date), cols.indexOf(B.date)].sort((x, y) => x - y);
   const [m0, m1] = [A.min, B.min].sort((x, y) => x - y);
-  return event.dates
+  return cols
     .slice(d0, d1 + 1)
     .flatMap((d) => times(event).filter((m) => m >= m0 && m <= m1).map((m) => slotKey(d, m)));
 };
@@ -41,6 +75,7 @@ export const paint = (slots: Set<string>, keys: string[], on: boolean) => {
 };
 
 export interface Window {
+  /** Grid column id: ISO date in date mode, `dow:N` in weekday mode. */
   date: string;
   start: number;
   end: number;
@@ -50,7 +85,7 @@ export interface Window {
 /** Longest runs where the same people are free, ranked by headcount then length. */
 export const bestWindows = (event: SyncEvent, counts: Map<string, string[]>, n = 3) => {
   const found: Window[] = [];
-  for (const date of event.dates) {
+  for (const date of columns(event)) {
     let cur: Window | null = null;
     for (const m of times(event)) {
       const names = counts.get(slotKey(date, m)) ?? [];

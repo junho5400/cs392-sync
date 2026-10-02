@@ -1,11 +1,20 @@
-export interface SyncEvent {
+export type SyncEvent = {
   title: string;
-  /** Local dates as YYYY-MM-DD, sorted. */
-  dates: string[];
   /** Minutes from midnight. `start` is inclusive, `end` exclusive. */
   start: number;
   end: number;
-}
+} & (
+  | {
+      kind: 'dates';
+      /** Local dates as YYYY-MM-DD, sorted. */
+      dates: string[];
+    }
+  | {
+      kind: 'dow';
+      /** Weekdays as 0 (Sun) – 6 (Sat). */
+      days: number[];
+    }
+);
 
 export interface Person {
   name: string;

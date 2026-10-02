@@ -12,7 +12,7 @@ import {
   TIME_ZONE,
   bestWindows,
   countMap,
-  fmtRange,
+  fmtEventRange,
   fmtTime,
   paint,
   windowKeys,
@@ -98,7 +98,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
         <div className="flex flex-col gap-1 text-[12px] text-ink-2">
           <p className="flex items-center gap-1.5">
             <Icon name="clock" className="size-3" />
-            {fmtRange(event.dates)} · {fmtTime(event.start)} – {fmtTime(event.end)}
+            {fmtEventRange(event)} · {fmtTime(event.start)} – {fmtTime(event.end)}
           </p>
           <p className="flex items-center gap-1.5">
             <Icon name="globe" className="size-3" />

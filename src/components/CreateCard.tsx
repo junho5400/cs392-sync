@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Icon } from './Icon';
 import { MonthPicker } from './MonthPicker';
 import type { SyncEvent } from '../types';
-import { STEP, TIME_ZONE, fmtTime } from '../utilities/slots';
+import { STEP, TIME_ZONE, fmtTime, DOW_SHORT } from '../utilities/slots';
 import { CARD_SPRING } from '../utilities/motion';
 
 const OPTIONS = Array.from({ length: 1440 / STEP + 1 }, (_, i) => i * STEP);
@@ -35,13 +35,37 @@ const TimeSelect = ({ label, value, options, onChange }: {
 
 export const CreateCard = ({ onCreate, onSample }: Props) => {
   const [title, setTitle] = useState('');
+  const [mode, setMode] = useState<'dates' | 'dow'>('dates');
   const [dates, setDates] = useState<Set<string>>(new Set());
+  const [days, setDays] = useState<Set<number>>(new Set());
   const [start, setStart] = useState(9 * 60);
   const [end, setEnd] = useState(17 * 60);
-  const ready = dates.size > 0;
+  const ready = mode === 'dates' ? dates.size > 0 : days.size > 0;
 
-  const create = () =>
-    ready && onCreate({ title: title.trim() || 'Untitled event', dates: [...dates].sort(), start, end });
+  const create = () => {
+    if (!ready) return;
+    onCreate(
+      mode === 'dates'
+        ? { kind: 'dates', title: title.trim() || 'Untitled event', dates: [...dates].sort(), start, end }
+        : { kind: 'dow', title: title.trim() || 'Untitled event', days: [...days].sort(), start, end },
+    );
+  };
+
+  const toggleDay = (d: number) => {
+    const next = new Set(days);
+    if (next.has(d)) next.delete(d);
+    else next.add(d);
+    setDays(next);
+  };
+
+  const hint =
+    mode === 'dates'
+      ? ready
+        ? `${dates.size} date${dates.size > 1 ? 's' : ''} picked`
+        : 'Pick dates on the calendar — drag to pick many'
+      : ready
+        ? `Every ${days.size === 7 ? 'week' : [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DOW_SHORT[d]).join(', ')}`
+        : 'Pick weekdays — repeats every week';
 
   return (
     <motion.section
@@ -81,7 +105,7 @@ export const CreateCard = ({ onCreate, onSample }: Props) => {
 
         <div className="mt-auto flex flex-col gap-2">
           <p className={`text-[12px] transition-colors ${ready ? 'text-ink-2' : 'font-medium text-ink-1'}`}>
-            {ready ? `${dates.size} date${dates.size > 1 ? 's' : ''} picked` : 'Pick dates on the calendar — drag to pick many'}
+            {hint}
           </p>
           <button
             disabled={!ready}
@@ -97,7 +121,46 @@ export const CreateCard = ({ onCreate, onSample }: Props) => {
       </motion.div>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5">
-        <MonthPicker selected={dates} onChange={setDates} />
+        <div className="mb-3 flex gap-1 rounded-lg bg-sunken p-0.5" role="tablist" aria-label="Date type">
+          {(['dates', 'dow'] as const).map((m) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`h-7 flex-1 rounded-md text-[12.5px] font-medium transition-colors ${
+                mode === m ? 'bg-brand text-brand-ink' : 'text-ink-2 hover:text-ink'
+              }`}
+            >
+              {m === 'dates' ? 'Specific dates' : 'Days of week'}
+            </button>
+          ))}
+        </div>
+        {mode === 'dates' ? (
+          <MonthPicker selected={dates} onChange={setDates} />
+        ) : (
+          <div>
+            <p className="mb-2 text-[13px] font-medium text-ink-1">Repeats weekly</p>
+            <div className="grid grid-cols-7 gap-1">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                const on = days.has(d);
+                return (
+                  <button
+                    key={d}
+                    aria-pressed={on}
+                    aria-label={DOW_SHORT[d]}
+                    onClick={() => toggleDay(d)}
+                    className={`grid h-9 place-items-center rounded-lg text-[12.5px] font-medium tabular-nums transition-colors duration-150 ${
+                      on ? 'bg-brand text-brand-ink' : 'bg-sunken text-ink-1 hover:bg-line'
+                    }`}
+                  >
+                    {DOW_SHORT[d].slice(0, 2)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.section>
   );
