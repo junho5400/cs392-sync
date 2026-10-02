@@ -10,7 +10,7 @@ interface Drag {
 }
 
 /** One grid: the group heatmap and your marks share every cell. */
-export const HeatGrid = ({ event, counts, total, mine, highlight, onPaint, onHover }: SurfaceProps) => {
+export const HeatGrid = ({ event, counts, total, mine, highlight, spotlight, onPaint, onHover }: SurfaceProps) => {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const rows = times(event);
@@ -108,6 +108,8 @@ export const HeatGrid = ({ event, counts, total, mine, highlight, onPaint, onHov
                 const on = isMine(key);
                 // Live count: swap your saved mark for the drag preview.
                 const count = (counts.get(key)?.length ?? 0) - (mine.has(key) ? 1 : 0) + (on ? 1 : 0);
+                // A hovered person turns cells they didn't pick fully empty.
+                const erased = spotlight === 'person' && highlight !== null && !highlight.has(key);
                 return (
                   <button
                     key={key}
@@ -120,17 +122,17 @@ export const HeatGrid = ({ event, counts, total, mine, highlight, onPaint, onHov
                     onClick={(e) => e.detail === 0 && onPaint([key], !mine.has(key))}
                     onFocus={() => onHover(key)}
                     className={`grid place-items-center rounded-[5px] text-[10.5px] font-semibold tabular-nums transition-[background-color,opacity] duration-150 ${
-                      count ? HEAT[heat(count, total)] : 'bg-sunken/60'
-                    } ${highlight && !highlight.has(key) ? 'opacity-30' : ''} ${
+                      erased ? 'bg-sunken/60' : count ? HEAT[heat(count, total)] : 'bg-sunken/60'
+                    } ${!erased && highlight && !highlight.has(key) ? 'opacity-30' : ''} ${
                       hover === key ? 'outline outline-1 -outline-offset-1 outline-ink-3' : ''
                     }`}
                   >
                     <span
                       className={`grid h-4 min-w-5 place-items-center rounded-full px-1 leading-none transition-[background-color,color,transform] duration-150 ease-out-strong ${
-                        on ? 'scale-100 bg-brand text-brand-ink' : 'scale-90 text-ink-1/80'
+                        erased ? 'scale-90 text-transparent' : on ? 'scale-100 bg-brand text-brand-ink' : 'scale-90 text-ink-1/80'
                       }`}
                     >
-                      {count || ''}
+                      {erased ? '' : count || ''}
                     </span>
                   </button>
                 );

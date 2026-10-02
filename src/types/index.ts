@@ -31,6 +31,8 @@ export interface SurfaceProps {
   mine: Set<string>;
   /** Slots to spotlight: a hovered person or best time. */
   highlight: Set<string> | null;
+  /** Where the spotlight comes from; a person turns other cells fully empty. */
+  spotlight?: 'person' | 'window';
   onPaint: (keys: string[], on: boolean) => void;
   /** Replace all of your slots at once (one undo step). */
   onReplace: (slots: Set<string>) => void;

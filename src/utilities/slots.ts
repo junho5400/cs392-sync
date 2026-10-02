@@ -105,6 +105,13 @@ export const bestWindows = (event: SyncEvent, counts: Map<string, string[]>, n =
 export const windowKeys = (w: Window) =>
   Array.from({ length: (w.end - w.start) / STEP }, (_, i) => slotKey(w.date, w.start + i * STEP));
 
+/** Slots every listed person picked (common availability). Empty in, empty out. */
+export const commonSlots = (people: Person[]) => {
+  if (!people.length) return new Set<string>();
+  const [first, ...rest] = people;
+  return new Set([...first.slots].filter((k) => rest.every((p) => p.slots.has(k))));
+};
+
 /** 0–5 heat step for `count` of `total`. */
 export const heat = (count: number, total: number) =>
   total ? Math.ceil((count / total) * 5) : 0;

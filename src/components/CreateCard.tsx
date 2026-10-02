@@ -9,7 +9,7 @@ import { CARD_SPRING } from '../utilities/motion';
 const OPTIONS = Array.from({ length: 1440 / STEP + 1 }, (_, i) => i * STEP);
 
 interface Props {
-  onCreate: (event: SyncEvent) => void;
+  onCreate: (event: SyncEvent) => void | Promise<void>;
   onSample: () => void;
 }
 
@@ -40,15 +40,25 @@ export const CreateCard = ({ onCreate, onSample }: Props) => {
   const [days, setDays] = useState<Set<number>>(new Set());
   const [start, setStart] = useState(9 * 60);
   const [end, setEnd] = useState(17 * 60);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const ready = mode === 'dates' ? dates.size > 0 : days.size > 0;
 
-  const create = () => {
-    if (!ready) return;
-    onCreate(
-      mode === 'dates'
-        ? { kind: 'dates', title: title.trim() || 'Untitled event', dates: [...dates].sort(), start, end }
-        : { kind: 'dow', title: title.trim() || 'Untitled event', days: [...days].sort(), start, end },
-    );
+  const create = async () => {
+    if (!ready || busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      await onCreate(
+        mode === 'dates'
+          ? { kind: 'dates', title: title.trim() || 'Untitled event', dates: [...dates].sort(), start, end }
+          : { kind: 'dow', title: title.trim() || 'Untitled event', days: [...days].sort(), start, end },
+      );
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const toggleDay = (d: number) => {
@@ -58,14 +68,11 @@ export const CreateCard = ({ onCreate, onSample }: Props) => {
     setDays(next);
   };
 
-  const hint =
-    mode === 'dates'
-      ? ready
-        ? `${dates.size} date${dates.size > 1 ? 's' : ''} picked`
-        : 'Pick dates on the calendar — drag to pick many'
-      : ready
-        ? `Every ${days.size === 7 ? 'week' : [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DOW_SHORT[d]).join(', ')}`
-        : 'Pick weekdays — repeats every week';
+  const hint = !ready
+    ? ''
+    : mode === 'dates'
+      ? `${dates.size} date${dates.size > 1 ? 's' : ''} picked`
+      : `Every ${days.size === 7 ? 'week' : [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DOW_SHORT[d]).join(', ')}`;
 
   return (
     <motion.section
@@ -79,12 +86,11 @@ export const CreateCard = ({ onCreate, onSample }: Props) => {
         className="flex flex-col gap-5 border-b border-dashed border-line p-5 md:border-r md:border-b-0"
       >
         <div>
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.1em] text-ink-3">New event</p>
           <input
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && create()}
+            onKeyDown={(e) => e.key === 'Enter' && void create()}
             placeholder="Event name"
             aria-label="Event name"
             className="w-full bg-transparent text-[18px] font-semibold tracking-tight text-ink-1 outline-none placeholder:text-ink-3"
@@ -104,18 +110,21 @@ export const CreateCard = ({ onCreate, onSample }: Props) => {
         </div>
 
         <div className="mt-auto flex flex-col gap-2">
-          <p className={`text-[12px] transition-colors ${ready ? 'text-ink-2' : 'font-medium text-ink-1'}`}>
-            {hint}
-          </p>
+          <p className="text-[12px] text-ink-2">{hint || ' '}</p>
+          {failed && (
+            <p role="alert" className="text-[12px] text-red-500 dark:text-red-400">
+              Couldn&apos;t create the event. Check your connection and try again.
+            </p>
+          )}
           <button
-            disabled={!ready}
-            onClick={create}
+            disabled={!ready || busy}
+            onClick={() => void create()}
             className="h-8 rounded-lg bg-brand text-[12.5px] font-medium text-brand-ink transition-[transform,opacity] duration-150 active:scale-[0.96] disabled:opacity-30"
           >
-            Create event
+            {busy ? 'Creating…' : 'Create event'}
           </button>
           <button onClick={onSample} className="h-7 text-[12px] text-ink-2 transition-colors hover:text-ink">
-            or open a sample event
+            or open a sample event (dev)
           </button>
         </div>
       </motion.div>

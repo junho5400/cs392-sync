@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
@@ -13,17 +13,35 @@ interface Props {
   /** Names free in the hovered slot; null when nothing is hovered. */
   free: string[] | null;
   total: number;
+  /** Clicked people whose common availability is spotlighted. */
+  selected: Set<string>;
   onSaveName: (name: string) => void;
   onClaim: (name: string) => void;
   onHoverPerson: (name: string | null) => void;
+  onTogglePerson: (name: string) => void;
 }
 
-export const Roster = ({ people, myName, mineCount, free, total, onSaveName, onClaim, onHoverPerson }: Props) => {
+export const Roster = ({ people, myName, mineCount, free, total, selected, onSaveName, onClaim, onHoverPerson, onTogglePerson }: Props) => {
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
   const me = myName ?? 'You';
   const needsName = !myName && mineCount > 0;
   const dim = (name: string) => free !== null && !free.includes(name);
+
+  // Rows toggle selection; clicks into the name field or row buttons keep their own job.
+  const toggleHandlers = (name: string) => ({
+    onClick: (e: ReactMouseEvent) => {
+      if ((e.target as HTMLElement).closest('input,button')) return;
+      onTogglePerson(name);
+    },
+    onKeyDown: (e: ReactKeyboardEvent) => {
+      if ((e.target as HTMLElement).closest('input,button')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onTogglePerson(name);
+      }
+    },
+  });
 
   const save = () => {
     const name = draft.trim();
@@ -51,11 +69,15 @@ export const Roster = ({ people, myName, mineCount, free, total, onSaveName, onC
       </div>
 
       <div
+        role="checkbox"
+        aria-checked={selected.has(me)}
+        tabIndex={0}
         onMouseEnter={() => onHoverPerson(me)}
         onMouseLeave={() => onHoverPerson(null)}
-        className={`flex h-8 items-center gap-2 rounded-lg px-1.5 transition-[opacity,box-shadow] duration-150 ${
+        {...toggleHandlers(me)}
+        className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg px-1.5 transition-[opacity,box-shadow,background-color] duration-150 ${
           dim(me) ? 'opacity-35' : ''
-        } ${needsName ? 'shadow-[0_0_0_1px_var(--color-accent)]' : ''}`}
+        } ${needsName ? 'shadow-[0_0_0_1px_var(--color-accent)]' : ''} ${selected.has(me) ? 'bg-sunken' : ''}`}
       >
         {myName ? (
           <Avatar name={myName} you />
@@ -101,11 +123,15 @@ export const Roster = ({ people, myName, mineCount, free, total, onSaveName, onC
       {people.map((p) => (
         <div
           key={p.name}
+          role="checkbox"
+          aria-checked={selected.has(p.name)}
+          tabIndex={0}
           onMouseEnter={() => onHoverPerson(p.name)}
           onMouseLeave={() => onHoverPerson(null)}
-          className={`group flex h-8 items-center gap-2 rounded-lg px-1.5 transition-[opacity,background-color] duration-150 hover:bg-sunken ${
+          {...toggleHandlers(p.name)}
+          className={`group flex h-8 cursor-pointer items-center gap-2 rounded-lg px-1.5 transition-[opacity,background-color] duration-150 hover:bg-sunken ${
             dim(p.name) ? 'opacity-35' : ''
-          }`}
+          } ${selected.has(p.name) ? 'bg-sunken' : ''}`}
         >
           <Avatar name={p.name} />
           <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-1">{p.name}</span>
