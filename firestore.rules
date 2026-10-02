@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Sync v1: anyone with the link views and submits. No sign-in, no expiry.
+// Bounds mirror src/services/events.ts; the client parser validates semantics
+// (date formats, slot shapes) that rules cannot express over lists.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function validEvent(d) {
+      return d.keys().hasOnly(['title', 'kind', 'dates', 'days', 'start', 'end', 'createdAt'])
+        && d.title is string && d.title.size() >= 1 && d.title.size() <= 200
+        && d.kind is string
+        && d.start is int && d.end is int
+        && d.start >= 0 && d.start < d.end && d.end <= 1440
+        && (d.end - d.start) % 30 == 0
+        && (
+          (d.kind == 'dates' && 'dates' in d && !('days' in d)
+            && d.dates is list && d.dates.size() >= 1 && d.dates.size() <= 366)
+          || (d.kind == 'dow' && 'days' in d && !('dates' in d)
+            && d.days is list && d.days.size() >= 1 && d.days.size() <= 7
+            && d.days.hasOnly([0, 1, 2, 3, 4, 5, 6]))
+        );
+    }
+
+    function validResponse(d) {
+      return d.keys().hasOnly(['name', 'nameLower', 'slots', 'updatedAt'])
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 80
+        && d.nameLower is string && d.nameLower.size() >= 1 && d.nameLower.size() <= 80
+        && d.slots is list && d.slots.size() <= 20000;
+    }
+
+    match /events/{eventId} {
+      // Get only: events are unguessable ids, never listed.
+      allow get: if true;
+      allow create: if validEvent(request.resource.data);
+      // Events are immutable in v1: no edit, no delete, no expiry.
+      allow update, delete: if false;
+
+      match /responses/{responseId} {
+        allow read: if true;
+        allow create, update: if validResponse(request.resource.data);
+        // No user-facing delete in v1; delete stays open so a rename can move
+        // a response from the old name to the new one.
+        allow delete: if true;
+      }
+    }
+  }
+}

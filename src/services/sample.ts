@@ -1,7 +1,7 @@
 import type { Person, SyncEvent } from '../types';
 import { STEP, slotKey } from '../utilities/slots';
 
-// ponytail: in-memory sample standing in for the backend; replace with a Firestore service.
+// Local-only demo: the sample event never touches the server.
 const dates = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'];
 
 export const sampleEvent: SyncEvent = {

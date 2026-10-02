@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { BestTimes } from './BestTimes';
 import { HeatGrid } from './HeatGrid';
@@ -6,11 +6,14 @@ import { Icon } from './Icon';
 import { Roster } from './Roster';
 import { ShareButton } from './ShareButton';
 import type { Person, SyncEvent } from '../types';
+import { deleteResponse, findPerson, nameKey, saveResponse } from '../services/events';
+import { rememberName } from '../services/storage';
 import { CARD_SPRING } from '../utilities/motion';
 import {
   HEAT,
   TIME_ZONE,
   bestWindows,
+  commonSlots,
   countMap,
   fmtEventRange,
   fmtTime,
@@ -21,7 +24,11 @@ import {
 
 interface Props {
   event: SyncEvent;
+  /** Firestore id, or null for the local-only sample demo. */
+  eventId: string | null;
   initialPeople: Person[];
+  initialMine?: Set<string>;
+  initialName?: string | null;
   onNew: () => void;
 }
 
@@ -36,28 +43,93 @@ type Action =
   | { type: 'set'; slots: Set<string> }
   | { type: 'undo' };
 
-const reduce = ({ slots, history }: Mine, a: Action): Mine => {
+export const reduce = ({ slots, history }: Mine, a: Action): Mine => {
   if (a.type === 'undo') return history.length ? { slots: history[history.length - 1], history: history.slice(0, -1) } : { slots, history };
   const next =
     a.type === 'paint' ? paint(slots, a.keys, a.on) : a.type === 'set' ? a.slots : new Set([...slots, ...a.slots]);
   return { slots: next, history: [...history.slice(-49), slots] };
 };
 
-export const EventView = ({ event, initialPeople, onNew }: Props) => {
+/** Autosave fires this long after you stop painting. */
+export const AUTOSAVE_MS = 700;
+
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+const snap = (name: string, slots: Set<string>) => `${name}\n${[...slots].sort().join(' ')}`;
+
+export const EventView = ({ event, eventId, initialPeople, initialMine, initialName, onNew }: Props) => {
   const [people, setPeople] = useState(initialPeople);
-  const [{ slots: mine, history }, dispatch] = useReducer(reduce, { slots: new Set<string>(), history: [] });
-  const [myName, setMyName] = useState<string | null>(null);
+  const [{ slots: mine, history }, dispatch] = useReducer(reduce, {
+    slots: initialMine ?? new Set<string>(),
+    history: [],
+  });
+  const [myName, setMyName] = useState<string | null>(initialName ?? null);
   const [hoverSlot, setHoverSlot] = useState<string | null>(null);
   const [hoverPerson, setHoverPerson] = useState<string | null>(null);
   const [hoverWindow, setHoverWindow] = useState<Window | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saveState, setSaveState] = useState<SaveState>(eventId && initialName ? 'saved' : 'idle');
+  const lastSaved = useRef<string | null>(initialName ? snap(initialName, initialMine ?? new Set()) : null);
 
   const me = myName ?? 'You';
   const everyone = mine.size || myName ? [...people, { name: me, slots: mine }] : people;
   const counts = countMap(everyone);
   const total = everyone.length;
+  // Hover spotlights one person or window; otherwise clicked people show common availability.
+  const chosen = [...selected]
+    .map((n) => everyone.find((p) => p.name === n))
+    .filter((p): p is Person => p !== undefined);
   const highlight = hoverWindow
     ? new Set(windowKeys(hoverWindow))
-    : (everyone.find((p) => p.name === hoverPerson)?.slots ?? null);
+    : hoverPerson
+      ? (everyone.find((p) => p.name === hoverPerson)?.slots ?? null)
+      : selected.size
+        ? commonSlots(chosen)
+        : null;
+  const spotlight = hoverWindow ? 'window' : hoverPerson || selected.size ? 'person' : undefined;
+
+  const togglePerson = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  // A rename follows your selection to the new name.
+  const remapSelection = (from: string | null, to: string) => {
+    if (!from || from === to || !selected.has(from)) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(from);
+      next.add(to);
+      return next;
+    });
+  };
+
+  const persist = useCallback(async (id: string, name: string, slots: Set<string>) => {
+    setSaveState('saving');
+    try {
+      await saveResponse(id, name, slots);
+      lastSaved.current = snap(name, slots);
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+  }, []);
+
+  // Autosave shortly after you stop painting, once named. Unnamed marks and
+  // the local demo never touch the server.
+  useEffect(() => {
+    if (!eventId || !myName || snap(myName, mine) === lastSaved.current) return;
+    setSaveState('saving');
+    const id = eventId;
+    const name = myName;
+    const slots = mine;
+    const t = setTimeout(() => void persist(id, name, slots), AUTOSAVE_MS);
+    return () => clearTimeout(t);
+  }, [eventId, myName, mine, persist]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,12 +147,33 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
     if (person) dispatch({ type: 'merge', slots: person.slots });
     setPeople(people.filter((p) => p.name !== name));
     setMyName(name);
+    if (eventId) {
+      rememberName(eventId, name);
+      // Adopt their slots; only write when your local marks change the union.
+      if (mine.size) void persist(eventId, name, new Set([...mine, ...(person?.slots ?? [])]));
+      else lastSaved.current = snap(name, person?.slots ?? new Set());
+    }
   };
 
   const saveName = (name: string) => {
-    const existing = people.find((p) => p.name.toLowerCase() === name.toLowerCase());
-    if (existing) claim(existing.name);
-    else setMyName(name);
+    const existing = findPerson(people, name);
+    if (existing) {
+      // Merge into them; your old response (if any) goes away with the rename.
+      const from = myName;
+      claim(existing.name);
+      remapSelection(from, existing.name);
+      if (eventId && from && nameKey(from) !== nameKey(existing.name))
+        void deleteResponse(eventId, from).catch(() => {});
+      return;
+    }
+    const from = myName;
+    remapSelection(from, name);
+    setMyName(name);
+    if (eventId) {
+      rememberName(eventId, name);
+      void persist(eventId, name, mine);
+      if (from && nameKey(from) !== nameKey(name)) void deleteResponse(eventId, from).catch(() => {});
+    }
   };
 
   return (
@@ -104,6 +197,25 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
             <Icon name="globe" className="size-3" />
             {TIME_ZONE.replace('_', ' ')}
           </p>
+          {eventId && myName && (
+            <p role="status" className="flex items-center gap-1.5">
+              {saveState === 'saving' ? (
+                'Saving…'
+              ) : saveState === 'error' ? (
+                <>
+                  Couldn&apos;t save.{' '}
+                  <button
+                    onClick={() => void persist(eventId, myName, mine)}
+                    className="font-medium text-ink-1 underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </>
+              ) : saveState === 'saved' ? (
+                'Saved'
+              ) : null}
+            </p>
+          )}
         </div>
         <div className="flex gap-1.5">
           <ShareButton />
@@ -123,7 +235,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
       >
         <div className="flex h-7 items-center justify-between gap-2">
           <p className="text-[12px] text-ink-2">
-            <span className="font-medium text-ink">Drag to mark when you're free.</span> Start on a mark to clear.
+            <span className="font-medium text-ink">Drag to mark when you&apos;re free.</span> Start on a mark to clear.
           </p>
           <div className="flex shrink-0 items-center">
             <button
@@ -150,6 +262,7 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
           total={total}
           mine={mine}
           highlight={highlight}
+          spotlight={spotlight}
           onPaint={(keys, on) => dispatch({ type: 'paint', keys, on })}
           onReplace={(slots) => dispatch({ type: 'set', slots })}
           onHover={setHoverSlot}
@@ -184,9 +297,11 @@ export const EventView = ({ event, initialPeople, onNew }: Props) => {
           mineCount={mine.size}
           free={hoverSlot ? (counts.get(hoverSlot) ?? []) : null}
           total={total}
+          selected={selected}
           onSaveName={saveName}
           onClaim={claim}
           onHoverPerson={setHoverPerson}
+          onTogglePerson={togglePerson}
         />
       </motion.div>
     </motion.section>
