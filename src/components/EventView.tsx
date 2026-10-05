@@ -269,8 +269,8 @@ export const EventView = ({ id, onNew }: Props) => {
               </p>
               {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
                 <div className="flex flex-col gap-1.5">
-                  <Button variant="secondary" icon="calendar" disabled={cal === 'loading'} onClick={() => void fillCalendar()}>
-                    {cal === 'loading' ? 'Opening calendar…' : 'Fill from calendar'}
+                  <Button variant="google" size="md" disabled={cal === 'loading'} onClick={() => void fillCalendar()}>
+                    {cal === 'loading' ? 'Opening…' : 'Fill from Google Calendar'}
                   </Button>
                   <p className={`truncate text-[12px] text-ink-3 ${event.kind === 'dow' ? '' : 'hidden'}`}>From this week</p>
                   {calError && (

@@ -100,7 +100,7 @@ export const HeatGrid = ({ view, mode, counts, total, mine, highlight, spotlight
 
         <div className="sticky left-0 z-10 grid auto-rows-[22px] gap-y-0.5 bg-surface pr-1.5">
           {rows.map((m) => {
-            const cls = `h-5 text-right text-[11px] leading-[14px] tabular-nums transition-colors ${
+            const cls = `flex items-center justify-end text-[11px] leading-[14px] tabular-nums transition-colors ${
               hovered?.min === m ? 'text-ink' : m % 60 ? 'text-transparent' : 'text-ink-3'
             }`;
             return painting ? (
