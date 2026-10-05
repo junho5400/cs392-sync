@@ -52,6 +52,28 @@ export const times = (event: SyncEvent) =>
 export const allKeys = (event: SyncEvent) =>
   columns(event).flatMap((col) => times(event).map((m) => slotKey(col, m)));
 
+/** Freebusy window covering every slot, in UTC. Weekday columns use this week. */
+export const calendarBounds = (event: SyncEvent) => {
+  const dates = coveredDates(event);
+  const timeMin = instantOf(dates[0], event.start, event.timeZone);
+  const timeMax = instantOf(dates[dates.length - 1], event.end, event.timeZone);
+  if (timeMin === null || timeMax === null) throw new Error('Those times are not on the calendar.');
+  return { timeMin: new Date(timeMin).toISOString(), timeMax: new Date(timeMax).toISOString() };
+};
+
+/** Slots whose wall-clock time does not overlap a busy instant. Busy times are epoch ms. */
+export const freeKeys = (event: SyncEvent, busy: { start: number; end: number }[]) => {
+  const free = new Set<string>();
+  for (const key of allKeys(event)) {
+    const { date, min } = parseKey(key);
+    const start = instantOf(colDate(date), min, event.timeZone);
+    if (start === null) continue;
+    const end = start + STEP * 60_000;
+    if (!busy.some((b) => b.start < end && b.end > start)) free.add(key);
+  }
+  return free;
+};
+
 export const countMap = (people: Pick<Person, 'name' | 'slots'>[]) => {
   const map = new Map<string, string[]>();
   for (const p of people) for (const k of p.slots) map.set(k, [...(map.get(k) ?? []), p.name]);
@@ -75,6 +97,9 @@ const refWeek = (() => {
 })();
 
 const colDate = (col: string) => (col.startsWith('dow:') ? refWeek[(dowOf(col) + 6) % 7] : col);
+
+/** Dates the grid stands for: the chosen dates, or this week's weekday columns. */
+export const coveredDates = (event: SyncEvent) => columns(event).map(colDate).sort();
 const dateCol = (iso: string, weekly: boolean) => (weekly ? `dow:${toDate(iso).getDay()}` : iso);
 
 const dayDiff = (a: string, b: string) => Math.round((toDate(b).getTime() - toDate(a).getTime()) / 86_400_000);

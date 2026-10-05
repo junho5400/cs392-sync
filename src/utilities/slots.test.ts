@@ -1,10 +1,13 @@
 import {
   bestWindows,
+  calendarBounds,
   columns,
   commonSlots,
   countMap,
+  coveredDates,
   fmtCol,
   fmtEventRange,
+  freeKeys,
   heat,
   openVoteKeys,
   paint,
@@ -14,6 +17,7 @@ import {
   voteKey,
 } from './slots';
 import type { Person, SyncEvent } from '../types';
+import { instantOf } from './zones';
 
 const base = { title: 'T', start: 540, end: 660, timeZone: 'America/Chicago', duration: 60 } as const;
 const event: SyncEvent = { ...base, kind: 'dates', dates: ['2026-10-05', '2026-10-06'] };
@@ -148,4 +152,25 @@ test('weekday best times and labels use Every-day names', () => {
 test('weekday columns shift to the next weekday across midnight', () => {
   const view = viewOf(dowEvent, 'Asia/Seoul');
   expect(view.when(view.place(k('dow:1', 600))!)).toEqual({ col: 'dow:2', min: 0 });
+});
+
+test('freeKeys drops a slot that overlaps a busy range', () => {
+  const start = instantOf('2026-10-05', 540, 'America/Chicago');
+  expect(start).not.toBeNull();
+  const keys = freeKeys(event, [{ start: start!, end: start! + 15 * 60_000 }]);
+  expect(keys.has(k('2026-10-05', 540))).toBe(false);
+  expect(keys.has(k('2026-10-05', 570))).toBe(true);
+  expect(keys.has(k('2026-10-06', 540))).toBe(true);
+});
+
+test('freeKeys lays this week onto weekday columns', () => {
+  const monday = coveredDates(dowEvent)[0];
+  const start = instantOf(monday, 540, 'America/Chicago');
+  expect(start).not.toBeNull();
+  const keys = freeKeys(dowEvent, [{ start: start!, end: start! + 30 * 60_000 }]);
+  expect(keys.has(k('dow:1', 540))).toBe(false);
+  expect(keys.has(k('dow:1', 570))).toBe(true);
+  expect(keys.has(k('dow:3', 540))).toBe(true);
+  const bounds = calendarBounds(dowEvent);
+  expect(Date.parse(bounds.timeMin)).toBeLessThan(Date.parse(bounds.timeMax));
 });
