@@ -18,7 +18,7 @@ export const HeatGrid = ({ view, mode, counts, total, mine, highlight, spotlight
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const { cols, rows, keyAt } = view;
-  const painting = mode === 'mine' && onPaint !== null;
+  const painting = onPaint !== null;
   const preview = drag ? new Set(rectKeys(view, drag.anchor, drag.current)) : null;
   const isMine = (k: string) => (drag && preview?.has(k) ? drag.on : mine.has(k));
   const hovered = hover ? parseKey(hover) : null;
@@ -122,7 +122,7 @@ export const HeatGrid = ({ view, mode, counts, total, mine, highlight, spotlight
 
         <div
           role="grid"
-          aria-label={painting ? 'Your availability' : 'Group availability'}
+          aria-label={mode === 'mine' ? 'Your availability' : 'Group availability'}
           className={`grid select-none auto-cols-[minmax(44px,1fr)] grid-flow-col gap-0.5 ${painting ? 'touch-none' : ''}`}
           onPointerDown={down}
           onPointerMove={(e) => {

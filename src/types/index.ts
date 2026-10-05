@@ -65,7 +65,7 @@ export interface SurfaceProps {
   highlight: Set<string> | null;
   /** A person spotlight empties other cells; a best-time spotlight only dims them. */
   spotlight: 'person' | 'window' | null;
-  /** Null when you cannot paint (not joined, or group mode). */
+  /** Null when painting is disabled. The grid paints in either mode when set. */
   onPaint: ((keys: string[], on: boolean) => void) | null;
   onHover: (key: string | null) => void;
 }
