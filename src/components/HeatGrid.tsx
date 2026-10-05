@@ -1,7 +1,7 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { SurfaceProps } from '../types';
 import { cellAt } from '../utilities/cellAt';
-import { HEAT, STEP, colHead, columns, fmtCol, fmtTime, heat, parseKey, rectKeys, slotKey, times } from '../utilities/slots';
+import { FAINT, HEAT, STEP, colHead, fmtCol, fmtTime, heat, parseKey, rectKeys, slotKey } from '../utilities/slots';
 
 interface Drag {
   anchor: string;
@@ -9,20 +9,35 @@ interface Drag {
   on: boolean;
 }
 
-/** One grid: the group heatmap and your marks share every cell. */
-export const HeatGrid = ({ event, counts, total, mine, highlight, spotlight, onPaint, onHover }: SurfaceProps) => {
+/**
+ * One grid, two emphases. "mine": your marks are solid and the group shows faintly
+ * underneath, so you can paint toward popular times. "group": full heat with counts,
+ * your marks reduced to an outline.
+ */
+export const HeatGrid = ({ view, mode, counts, total, mine, highlight, spotlight, onPaint, onHover }: SurfaceProps) => {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<string | null>(null);
-  const rows = times(event);
-  const cols = columns(event);
-  const preview = drag ? new Set(rectKeys(event, drag.anchor, drag.current)) : null;
+  const { cols, rows, keyAt } = view;
+  const painting = mode === 'mine' && onPaint !== null;
+  const preview = drag ? new Set(rectKeys(view, drag.anchor, drag.current)) : null;
   const isMine = (k: string) => (drag && preview?.has(k) ? drag.on : mine.has(k));
   const hovered = hover ? parseKey(hover) : null;
+  const firstCell = cols.flatMap((c) => rows.map((m) => (keyAt(c, m) ? slotKey(c, m) : null))).find(Boolean);
 
-  const toggleAll = (keys: string[]) => onPaint(keys, !keys.every((k) => mine.has(k)));
+  const toggleAll = (keys: (string | null)[]) => {
+    const real = keys.filter((k): k is string => k !== null);
+    onPaint?.(real, !real.every((k) => mine.has(k)));
+  };
 
-  const moveFocus = (e: KeyboardEvent, key: string) => {
-    const { date, min } = parseKey(key);
+  const point = (cell: string | null) => {
+    if (cell === hover) return;
+    setHover(cell);
+    const { date, min } = cell ? parseKey(cell) : { date: '', min: 0 };
+    onHover(cell ? keyAt(date, min) : null);
+  };
+
+  const moveFocus = (e: KeyboardEvent, cell: string) => {
+    const { date, min } = parseKey(cell);
     const d = cols.indexOf(date);
     const next = {
       ArrowUp: [d, min - STEP],
@@ -30,110 +45,145 @@ export const HeatGrid = ({ event, counts, total, mine, highlight, spotlight, onP
       ArrowLeft: [d - 1, min],
       ArrowRight: [d + 1, min],
     }[e.key] as [number, number] | undefined;
-    if (!next || !cols[next[0]] || next[1] < event.start || next[1] >= event.end) return;
+    if (!next || !cols[next[0]] || !keyAt(cols[next[0]], next[1])) return;
     e.preventDefault();
-    document.querySelector<HTMLElement>(`[data-key="${slotKey(cols[next[0]], next[1])}"]`)?.focus();
+    document.querySelector<HTMLElement>(`[data-cell="${slotKey(cols[next[0]], next[1])}"]`)?.focus();
+  };
+
+  const down = (e: PointerEvent) => {
+    const cell = cellAt(e, 'cell');
+    if (!cell || e.button !== 0) return;
+    if (!painting) {
+      point(cell);
+      return;
+    }
+    point(null);
+    const { date, min } = parseKey(cell);
+    const key = keyAt(date, min);
+    if (!key) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ anchor: cell, current: cell, on: !mine.has(key) });
   };
 
   return (
-    <div className="-mx-1 overflow-x-auto px-1 pb-1">
-      <div className="grid min-w-fit grid-cols-[40px_1fr] gap-x-1.5">
-        <span />
-        <div className="grid auto-cols-[minmax(44px,1fr)] grid-flow-col gap-0.5">
+    <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+      <div className="grid min-w-fit grid-cols-[46px_1fr] pb-1">
+        <span className="sticky top-0 left-0 z-30 bg-surface" />
+        <div className="sticky top-0 z-20 grid auto-cols-[minmax(44px,1fr)] grid-flow-col gap-0.5 bg-surface pb-1">
           {cols.map((col) => {
-            const h = colHead(col);
-            return (
+            const h = colHead(view.when({ col, min: rows.find((m) => keyAt(col, m)) ?? 0 }).col);
+            const label = (
+              <>
+                <span className="text-[11px] text-ink-3">{h.top}</span>
+                <span className="mt-1 text-[13px] font-semibold tabular-nums text-ink">{h.bottom}</span>
+              </>
+            );
+            const cls = `flex h-9 flex-col items-center justify-center rounded-md leading-none transition-colors ${
+              hovered?.date === col ? 'bg-sunken' : ''
+            }`;
+            return painting ? (
               <button
                 key={col}
-                onClick={() => toggleAll(rows.map((m) => slotKey(col, m)))}
+                onClick={() => toggleAll(rows.map((m) => keyAt(col, m)))}
                 aria-label={`Toggle all of ${fmtCol(col)}`}
-                className={`flex h-9 flex-col items-center justify-center rounded-md leading-none transition-colors hover:bg-sunken ${
-                  hovered?.date === col ? 'bg-sunken' : ''
-                }`}
+                className={`${cls} hover:bg-sunken`}
               >
-                <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-ink-2">{h.top}</span>
-                <span className="mt-1 text-[13px] font-semibold tabular-nums text-ink-1">{h.bottom}</span>
+                {label}
               </button>
+            ) : (
+              <div key={col} className={cls}>
+                {label}
+              </div>
             );
           })}
         </div>
 
-        <div className="grid auto-rows-[22px] gap-y-0.5">
-          {rows.map((m) => (
-            <button
-              key={m}
-              onClick={() => toggleAll(cols.map((d) => slotKey(d, m)))}
-              aria-label={`Toggle ${fmtTime(m)} on every day`}
-              className={`-mt-2.5 h-5 text-right text-[10.5px] tabular-nums transition-colors hover:text-ink ${
-                hovered?.min === m ? 'text-ink' : m % 60 ? 'text-transparent' : 'text-ink-3'
-              }`}
-            >
-              {fmtTime(m, true)}
-            </button>
-          ))}
+        <div className="sticky left-0 z-10 grid auto-rows-[22px] gap-y-0.5 bg-surface pr-1.5">
+          {rows.map((m) => {
+            const cls = `h-5 text-right text-[11px] leading-[14px] tabular-nums transition-colors ${
+              hovered?.min === m ? 'text-ink' : m % 60 ? 'text-transparent' : 'text-ink-3'
+            }`;
+            return painting ? (
+              <button
+                key={m}
+                onClick={() => toggleAll(cols.map((d) => keyAt(d, m)))}
+                aria-label={`Toggle ${fmtTime(m)} on every day`}
+                className={`${cls} hover:text-ink`}
+              >
+                {fmtTime(m, true)}
+              </button>
+            ) : (
+              <span key={m} className={cls}>
+                {fmtTime(m, true)}
+              </span>
+            );
+          })}
         </div>
 
         <div
           role="grid"
-          aria-label="Availability"
-          className="grid touch-none select-none auto-cols-[minmax(44px,1fr)] grid-flow-col gap-0.5"
-          onPointerDown={(e) => {
-            const key = cellAt(e);
-            if (!key || e.button !== 0) return;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setDrag({ anchor: key, current: key, on: !mine.has(key) });
-          }}
+          aria-label={painting ? 'Your availability' : 'Group availability'}
+          className={`grid select-none auto-cols-[minmax(44px,1fr)] grid-flow-col gap-0.5 ${painting ? 'touch-none' : ''}`}
+          onPointerDown={down}
           onPointerMove={(e) => {
-            const key = cellAt(e);
-            if (key && drag && key !== drag.current) setDrag({ ...drag, current: key });
-            if (key !== hover) {
-              setHover(key);
-              onHover(key);
-            }
+            const cell = cellAt(e, 'cell');
+            if (drag && cell && cell !== drag.current) setDrag({ ...drag, current: cell });
+            // The gaps between cells have no cell; keep the last one so the readout doesn't blink.
+            if (!drag && cell && e.pointerType !== 'touch') point(cell);
           }}
           onPointerUp={() => {
-            if (preview && drag) onPaint([...preview], drag.on);
+            if (preview && drag) onPaint?.([...preview], drag.on);
             setDrag(null);
           }}
           onPointerCancel={() => setDrag(null)}
-          onPointerLeave={() => {
-            setHover(null);
-            onHover(null);
-          }}
+          onPointerLeave={(e) => e.pointerType !== 'touch' && point(null)}
         >
           {cols.map((col) => (
             <div key={col} role="row" className="grid auto-rows-[22px] gap-y-0.5">
               {rows.map((m) => {
-                const key = slotKey(col, m);
+                const cell = slotKey(col, m);
+                const key = keyAt(col, m);
+                if (!key) return <span key={cell} aria-hidden="true" className="hatch rounded-[5px]" />;
                 const on = isMine(key);
-                // Live count: swap your saved mark for the drag preview.
-                const count = (counts.get(key)?.length ?? 0) - (mine.has(key) ? 1 : 0) + (on ? 1 : 0);
-                // A hovered person turns cells they didn't pick fully empty.
-                const erased = spotlight === 'person' && highlight !== null && !highlight.has(key);
+                const at = view.when({ col, min: m });
+                const others = (counts.get(key)?.length ?? 0) - (mine.has(key) ? 1 : 0);
+                // Live count while dragging: your preview replaces your saved mark.
+                const count = others + (on ? 1 : 0);
+                const outside = highlight !== null && !highlight.has(key);
+                const erased = outside && spotlight === 'person' && mode === 'group';
+                const dim = outside && !erased ? 'opacity-30' : '';
+                const ring = hover === cell ? 'outline outline-1 -outline-offset-1 outline-ink-3' : '';
+                const fill =
+                  mode === 'mine'
+                    ? on
+                      ? 'bg-brand text-brand-ink'
+                      : others
+                        ? FAINT[heat(others, total)]
+                        : 'bg-sunken/60'
+                    : count && !erased
+                      ? HEAT[heat(count, total)]
+                      : 'bg-sunken/60';
                 return (
                   <button
-                    key={key}
+                    key={cell}
                     role="gridcell"
-                    data-key={key}
-                    aria-pressed={on}
-                    aria-label={`${fmtCol(col)}, ${fmtTime(m)}, ${count} of ${total} free`}
-                    tabIndex={key === slotKey(cols[0], event.start) ? 0 : -1}
-                    onKeyDown={(e) => moveFocus(e, key)}
-                    onClick={(e) => e.detail === 0 && onPaint([key], !mine.has(key))}
-                    onFocus={() => onHover(key)}
-                    className={`grid place-items-center rounded-[5px] text-[10.5px] font-semibold tabular-nums transition-[background-color,opacity] duration-150 ${
-                      erased ? 'bg-sunken/60' : count ? HEAT[heat(count, total)] : 'bg-sunken/60'
-                    } ${!erased && highlight && !highlight.has(key) ? 'opacity-30' : ''} ${
-                      hover === key ? 'outline outline-1 -outline-offset-1 outline-ink-3' : ''
-                    }`}
+                    data-cell={cell}
+                    aria-pressed={painting ? on : undefined}
+                    aria-label={`${fmtCol(at.col)}, ${fmtTime(at.min)}, ${count} of ${total} free${on ? ', you' : ''}`}
+                    tabIndex={cell === firstCell ? 0 : -1}
+                    onKeyDown={(e) => moveFocus(e, cell)}
+                    onClick={(e) => painting && e.detail === 0 && onPaint?.([key], !mine.has(key))}
+                    onFocus={() => point(cell)}
+                    className={`relative grid place-items-center rounded-[5px] text-[11px] font-semibold tabular-nums transition-[background-color,opacity] duration-150 ${fill} ${dim} ${ring}`}
                   >
-                    <span
-                      className={`grid h-4 min-w-5 place-items-center rounded-full px-1 leading-none transition-[background-color,color,transform] duration-150 ease-out-strong ${
-                        erased ? 'scale-90 text-transparent' : on ? 'scale-100 bg-brand text-brand-ink' : 'scale-90 text-ink-1/80'
-                      }`}
-                    >
-                      {erased ? '' : count || ''}
-                    </span>
+                    {mode === 'group' && (
+                      <>
+                        {on && !erased && (
+                          <span aria-hidden="true" className="absolute inset-0 rounded-[5px] shadow-[inset_0_0_0_1.5px_var(--color-brand)]" />
+                        )}
+                        <span className="text-ink-1/80">{erased ? '' : count || ''}</span>
+                      </>
+                    )}
                   </button>
                 );
               })}

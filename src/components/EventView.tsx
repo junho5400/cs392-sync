@@ -1,309 +1,346 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import { Avatar } from './Avatar';
 import { BestTimes } from './BestTimes';
 import { HeatGrid } from './HeatGrid';
 import { Icon } from './Icon';
-import { Roster } from './Roster';
+import { JoinForm } from './JoinForm';
+import { NotFound } from './NotFound';
+import { People } from './People';
+import { Readout } from './Readout';
 import { ShareButton } from './ShareButton';
-import type { Person, SyncEvent } from '../types';
-import { join, saveSlots } from '../services/meet';
-import { CARD_SPRING } from '../utilities/motion';
+import { Button } from './ui/Button';
+import { SectionTitle } from './ui/SectionTitle';
+import { Segmented } from './ui/Segmented';
+import { Combobox } from './ui/Combobox';
+import { Sheet } from './ui/Sheet';
+import { join, saveSlots, saveVote, watchBoard, type Board, type JoinInput } from '../services/meet';
+import type { Person } from '../types';
 import {
   HEAT,
-  TIME_ZONE,
+  STEP,
+  answered,
   bestWindows,
   commonSlots,
   countMap,
+  counted,
   fmtEventRange,
   fmtTime,
   paint,
+  viewOf,
+  voteKey,
   windowKeys,
   type Window,
 } from '../utilities/slots';
+import { BROWSER_ZONE, zoneChoices } from '../utilities/zones';
 
 interface Props {
-  event: SyncEvent;
-  /** Firestore id, or null for the local-only sample demo. */
-  eventId: string | null;
-  initialPeople: Person[];
-  initialMine?: Set<string>;
-  initialName?: string | null;
+  id: string;
   onNew: () => void;
 }
 
-interface Mine {
-  slots: Set<string>;
-  history: Set<string>[];
-}
+type Action = { type: 'paint'; keys: string[]; on: boolean } | { type: 'load'; slots: Set<string> };
 
-type Action =
-  | { type: 'paint'; keys: string[]; on: boolean }
-  | { type: 'merge'; slots: Set<string> }
-  | { type: 'set'; slots: Set<string> }
-  | { type: 'undo' };
+const reduce = (slots: Set<string>, a: Action) => (a.type === 'load' ? a.slots : paint(slots, a.keys, a.on));
 
-export const reduce = ({ slots, history }: Mine, a: Action): Mine => {
-  if (a.type === 'undo') return history.length ? { slots: history[history.length - 1], history: history.slice(0, -1) } : { slots, history };
-  const next =
-    a.type === 'paint' ? paint(slots, a.keys, a.on) : a.type === 'set' ? a.slots : new Set([...slots, ...a.slots]);
-  return { slots: next, history: [...history.slice(-49), slots] };
-};
+const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /** Autosave fires this long after you stop painting. */
-export const AUTOSAVE_MS = 700;
+const AUTOSAVE_MS = 500;
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+const CARD = 'mx-auto w-full max-w-[1160px] rounded-xl bg-surface shadow-card';
 
-const snap = (name: string, slots: Set<string>) => `${name}\n${[...slots].sort().join(' ')}`;
-const nameKey = (name: string) => name.trim().toLowerCase();
-const findPerson = (list: Person[], name: string) => list.find((p) => nameKey(p.name) === nameKey(name));
-
-export const EventView = ({ event, eventId, initialPeople, initialMine, initialName, onNew }: Props) => {
-  const [{ slots: mine, history }, dispatch] = useReducer(reduce, {
-    slots: initialMine ?? new Set<string>(),
-    history: [],
-  });
-  const [myName, setMyName] = useState<string | null>(initialName ?? null);
+export const EventView = ({ id, onNew }: Props) => {
+  const [board, setBoard] = useState<Board | null | undefined>(undefined);
+  const [error, setError] = useState('');
+  /** "Not you?" hides your person on this device until you join again. */
+  const [away, setAway] = useState(false);
+  const myName = board && !away ? board.me : null;
+  const [mine, dispatch] = useReducer(reduce, new Set<string>());
+  const [mode, setMode] = useState<'mine' | 'group'>('group');
+  const [zone, setZone] = useState(BROWSER_ZONE);
+  const [withOptional, setWithOptional] = useState(false);
   const [hoverSlot, setHoverSlot] = useState<string | null>(null);
-  const [hoverPerson, setHoverPerson] = useState<string | null>(null);
   const [hoverWindow, setHoverWindow] = useState<Window | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [saveState, setSaveState] = useState<SaveState>(eventId && initialName ? 'saved' : 'idle');
-  const lastSaved = useRef<string | null>(initialName ? snap(initialName, initialMine ?? new Set()) : null);
-  const people = initialPeople.filter((p) => p.name !== myName);
+  const [hoverPerson, setHoverPerson] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [save, setSave] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const loadedFor = useRef<string | null>(null);
+  const dirty = useRef(false);
+  const pending = useRef<{ name: string; slots: Set<string> } | null>(null);
 
-  const me = myName ?? 'You';
-  const everyone = mine.size || myName ? [...people, { name: me, slots: mine }] : people;
-  const counts = countMap(everyone);
-  const total = everyone.length;
-  // Hover spotlights one person or window; otherwise clicked people show common availability.
-  const chosen = [...selected]
-    .map((n) => everyone.find((p) => p.name === n))
-    .filter((p): p is Person => p !== undefined);
+  useEffect(() => watchBoard(id, setBoard, setError), [id]);
+
+  const stored = board && myName ? board.people.find((p) => sameName(p.name, myName)) : undefined;
+
+  useEffect(() => {
+    if (!stored || loadedFor.current === stored.name) return;
+    loadedFor.current = stored.name;
+    dispatch({ type: 'load', slots: stored.slots });
+    setMode(stored.slots.size ? 'group' : 'mine');
+  }, [stored]);
+
+  const flush = useCallback(() => {
+    const next = pending.current;
+    if (!next) return;
+    pending.current = null;
+    saveSlots(id, next.name, next.slots).then(
+      () => {
+        setError('');
+        if (!pending.current) setSave('saved');
+      },
+      (err: Error) => {
+        setError(err.message);
+        setSave('failed');
+      },
+    );
+  }, [id]);
+
+  useEffect(() => {
+    if (!myName) return;
+    if (dirty.current) {
+      dirty.current = false;
+      pending.current = { name: myName, slots: mine };
+    }
+    if (!pending.current) return;
+    const t = setTimeout(flush, AUTOSAVE_MS);
+    return () => clearTimeout(t);
+  }, [myName, mine, flush]);
+
+  // Leaving before the debounce fires still saves.
+  useEffect(() => {
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, [flush]);
+
+  if (board === undefined && !error) return <section aria-busy="true" className={`${CARD} h-[640px] max-h-full`} />;
+  if (!board) {
+    return error ? (
+      <NotFound title="Could not open this event" body="Check your connection and reload." onNew={onNew} />
+    ) : (
+      <NotFound onNew={onNew} />
+    );
+  }
+
+  const { event } = board;
+  const me: Person | null = stored ? { ...stored, slots: mine } : null;
+  const everyone = board.people.map((p) => (me && sameName(p.name, me.name) ? me : p));
+  const responders = answered(everyone);
+  const hasOptional = responders.some((p) => p.optional);
+  const includeOptional = hasOptional && withOptional;
+  const group = counted(responders, includeOptional);
+  const counts = countMap(group);
+  const view = viewOf(event, zone);
+  const ranked = bestWindows(event, group);
+  const votable = ranked.complete && ranked.windows.length >= 2;
+  const open = new Set(votable ? ranked.windows.map(voteKey) : []);
+  const tallies = new Map<string, number>();
+  for (const p of group) if (p.vote && open.has(p.vote)) tallies.set(p.vote, (tallies.get(p.vote) ?? 0) + 1);
+  const slotsOf = (name: string) => everyone.find((p) => p.name === name)?.slots ?? new Set<string>();
   const highlight = hoverWindow
     ? new Set(windowKeys(hoverWindow))
     : hoverPerson
-      ? (everyone.find((p) => p.name === hoverPerson)?.slots ?? null)
-      : selected.size
-        ? commonSlots(chosen)
+      ? slotsOf(hoverPerson)
+      : picked.size
+        ? commonSlots(everyone.filter((p) => picked.has(p.name)))
         : null;
-  const spotlight = hoverWindow ? 'window' : hoverPerson || selected.size ? 'person' : undefined;
+  const spotlight = hoverWindow ? 'window' : highlight ? 'person' : null;
+  const painting = mode === 'mine' && me !== null;
 
-  const togglePerson = (name: string) => {
-    setSelected((prev) => {
+  const onPaint = (keys: string[], on: boolean) => {
+    dirty.current = true;
+    setSave('saving');
+    dispatch({ type: 'paint', keys, on });
+  };
+
+  const retry = () => {
+    if (!me) return;
+    pending.current = { name: me.name, slots: mine };
+    setSave('saving');
+    flush();
+  };
+
+  const togglePicked = (name: string) =>
+    setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
       return next;
     });
+
+  const onJoin = async (input: JoinInput) => {
+    // Reset before the write: the local snapshot can arrive before `join` resolves.
+    loadedFor.current = null;
+    await join(id, input);
+    setAway(false);
   };
 
-  // A rename follows your selection to the new name.
-  const remapSelection = (from: string | null, to: string) => {
-    if (!from || from === to || !selected.has(from)) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(from);
-      next.add(to);
-      return next;
-    });
+  const notMe = () => {
+    flush();
+    loadedFor.current = null;
+    dispatch({ type: 'load', slots: new Set() });
+    setAway(true);
+    setMode('group');
   };
 
-  const persist = useCallback(async (id: string, name: string, slots: Set<string>) => {
-    setSaveState('saving');
-    try {
-      await saveSlots(id, name, slots);
-      lastSaved.current = snap(name, slots);
-      setSaveState('saved');
-    } catch {
-      setSaveState('error');
-    }
-  }, []);
+  const onVote = (vote: string | null) =>
+    me &&
+    saveVote(id, me.name, vote).then(
+      () => setError(''),
+      (err: Error) => setError(err.message),
+    );
 
-  const adopt = useCallback(async (id: string, name: string, slots: Set<string>) => {
-    setSaveState('saving');
-    try {
-      const joined = await join(id, { name, password: '', optional: false });
-      setMyName(joined);
-      await saveSlots(id, joined, slots);
-      lastSaved.current = snap(joined, slots);
-      setSaveState('saved');
-    } catch {
-      setSaveState('error');
-    }
-  }, []);
-
-  // Autosave shortly after you stop painting, once named. Unnamed marks and
-  // the local demo never touch the server.
-  useEffect(() => {
-    if (!eventId || !myName || snap(myName, mine) === lastSaved.current) return;
-    setSaveState('saving');
-    const id = eventId;
-    const name = myName;
-    const slots = mine;
-    const t = setTimeout(() => void persist(id, name, slots), AUTOSAVE_MS);
-    return () => clearTimeout(t);
-  }, [eventId, myName, mine, persist]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !(e.target instanceof HTMLInputElement)) {
-        e.preventDefault();
-        dispatch({ type: 'undo' });
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const claim = (name: string) => {
-    const person = people.find((p) => p.name === name);
-    if (person) dispatch({ type: 'merge', slots: person.slots });
-    setMyName(name);
-    if (eventId) void adopt(eventId, name, new Set([...mine, ...(person?.slots ?? [])]));
-  };
-
-  const saveName = (name: string) => {
-    const existing = findPerson(people, name);
-    const from = myName;
-    if (existing) {
-      claim(existing.name);
-      remapSelection(from, existing.name);
-      return;
-    }
-    remapSelection(from, name);
-    setMyName(name);
-    if (eventId) void adopt(eventId, name, mine);
-  };
+  const readout = hoverSlot && <Readout slot={hoverSlot} view={view} people={group} />;
 
   return (
-    <motion.section
-      layoutId="sheet"
-      transition={CARD_SPRING}
-      className="mx-auto flex w-full max-w-[1120px] flex-col overflow-hidden rounded-2xl bg-surface shadow-card lg:grid lg:grid-cols-[232px_minmax(0,1fr)_224px] lg:grid-rows-[auto_1fr]"
-    >
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="order-1 flex flex-col gap-3 p-4 lg:col-start-1 lg:row-start-1 lg:border-r lg:border-dashed lg:border-line"
-      >
-        <h1 className="text-[18px] font-semibold leading-tight tracking-tight text-ink-1">{event.title}</h1>
-        <div className="flex flex-col gap-1 text-[12px] text-ink-2">
-          <p className="flex items-center gap-1.5">
-            <Icon name="clock" className="size-3" />
-            {fmtEventRange(event)} · {fmtTime(event.start)} – {fmtTime(event.end)}
+    <section className={`${CARD} flex flex-col lg:grid lg:h-[640px] lg:max-h-full lg:min-h-0 lg:grid-cols-[264px_minmax(0,1fr)_256px] lg:grid-rows-[auto_minmax(0,1fr)]`}>
+      <div className="order-1 flex flex-col gap-3 p-5 lg:col-start-1 lg:row-start-1 lg:border-r lg:border-line">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h1 className="truncate text-[22px] leading-tight font-medium tracking-[-0.015em] text-ink" title={event.title}>
+            {event.title}
+          </h1>
+          <p className="flex items-center gap-1.5 text-[13px] text-ink-2">
+            <Icon name="clock" className="size-3 shrink-0" />
+            <span className="truncate">
+              {fmtEventRange(event)} ·{' '}
+              {view.rows[view.rows.length - 1] + STEP - view.rows[0] >= 1440
+                ? 'All day'
+                : `${fmtTime(view.rows[0])} – ${fmtTime(view.rows[view.rows.length - 1] + STEP)}`}
+            </span>
           </p>
-          <p className="flex items-center gap-1.5">
-            <Icon name="globe" className="size-3" />
-            {TIME_ZONE.replace('_', ' ')}
-          </p>
-          {eventId && myName && (
-            <p role="status" className="flex items-center gap-1.5">
-              {saveState === 'saving' ? (
-                'Saving…'
-              ) : saveState === 'error' ? (
-                <>
-                  Couldn&apos;t save.{' '}
-                  <button
-                    onClick={() => void persist(eventId, myName, mine)}
-                    className="font-medium text-ink-1 underline underline-offset-2"
-                  >
-                    Retry
-                  </button>
-                </>
-              ) : saveState === 'saved' ? (
-                'Saved'
-              ) : null}
-            </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Combobox icon="globe" label="Time zone" value={zone} options={zoneChoices()} onChange={setZone} placeholder="Search city or GMT+9" />
+          <p className="truncate text-[12px] text-ink-3">Created in {event.timeZone.replaceAll('_', ' ')}</p>
+        </div>
+        <div className="flex gap-2">
+          <ShareButton />
+          <Button variant="ghost" icon="plus" onClick={onNew}>
+            New event
+          </Button>
+        </div>
+      </div>
+
+      <div className="order-4 min-h-0 border-t border-line p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto lg:border-r">
+        {readout && <div className="hidden h-full lg:block">{readout}</div>}
+        <div className={readout ? 'lg:hidden' : ''}>
+          {me ? (
+            <div className="flex flex-col gap-3">
+              <SectionTitle aside={save === 'saving' ? 'Saving…' : save === 'saved' ? 'Saved' : undefined}>You</SectionTitle>
+              <div className="flex items-center gap-2.5">
+                <Avatar name={me.name} you className="size-7 text-[11px]" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-ink">{me.name}</span>
+                  <span className="block text-[12px] text-ink-3">{me.optional ? 'Optional' : 'Required'}</span>
+                </span>
+                <Button variant="text" onClick={notMe}>
+                  Not you?
+                </Button>
+              </div>
+              <p className="text-[13px] text-ink-3">
+                <span className="lg:hidden">Tap</span>
+                <span className="hidden lg:inline">Hover</span> a time to see who’s free
+              </p>
+            </div>
+          ) : (
+            <JoinForm onJoin={onJoin} />
           )}
         </div>
-        <div className="flex gap-1.5">
-          <ShareButton />
-          <button
-            onClick={onNew}
-            className="flex h-7 items-center gap-1 rounded-lg px-2 text-[12px] font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink active:scale-[0.96]"
-          >
-            <Icon name="plus" className="size-3" /> New
-          </button>
-        </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="order-2 flex min-w-0 flex-col gap-2 border-t border-dashed border-line p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0"
-      >
-        <div className="flex h-7 items-center justify-between gap-2">
-          <p className="text-[12px] text-ink-2">
-            <span className="font-medium text-ink">Drag to mark when you&apos;re free.</span> Start on a mark to clear.
-          </p>
-          <div className="flex shrink-0 items-center">
-            <button
-              onClick={() => dispatch({ type: 'undo' })}
-              disabled={!history.length}
-              title="Undo (⌘Z)"
-              aria-label="Undo"
-              className="grid size-7 place-items-center rounded-lg text-ink-2 transition-colors hover:bg-sunken hover:text-ink active:scale-[0.96] disabled:opacity-30"
-            >
-              <Icon name="undo" />
-            </button>
-            <button
-              onClick={() => dispatch({ type: 'paint', keys: [...mine], on: false })}
-              disabled={!mine.size}
-              className="h-7 rounded-lg px-2 text-[12px] font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink disabled:opacity-30"
-            >
-              Clear
-            </button>
+      <div className="order-2 flex min-h-0 min-w-0 flex-col gap-3 border-t border-line p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0">
+        <div className="flex h-8 shrink-0 items-center justify-between gap-2">
+          {me ? (
+            <Segmented
+              label="Grid shows"
+              value={mode}
+              options={[
+                { value: 'mine', label: 'My times' },
+                { value: 'group', label: 'Group' },
+              ]}
+              onChange={setMode}
+              className="w-[200px]"
+            />
+          ) : (
+            <SectionTitle>Group availability</SectionTitle>
+          )}
+          <div className="flex min-w-0 items-center gap-1">
+            {error ? (
+              <>
+                <p role="alert" className="truncate text-[13px] text-red-600 dark:text-red-400" title={error}>
+                  {error}
+                </p>
+                {save === 'failed' && (
+                  <Button variant="ghost" onClick={retry}>
+                    Retry
+                  </Button>
+                )}
+              </>
+            ) : (
+              painting && <span className="mr-1 hidden truncate text-[13px] text-ink-3 sm:inline">Drag to mark when you’re free</span>
+            )}
+            {painting && (
+              <Button variant="ghost" disabled={!mine.size} onClick={() => onPaint([...mine], false)}>
+                Clear
+              </Button>
+            )}
           </div>
         </div>
         <HeatGrid
-          event={event}
+          view={view}
+          mode={painting ? 'mine' : 'group'}
           counts={counts}
-          total={total}
+          total={group.length}
           mine={mine}
           highlight={highlight}
           spotlight={spotlight}
-          onPaint={(keys, on) => dispatch({ type: 'paint', keys, on })}
-          onReplace={(slots) => dispatch({ type: 'set', slots })}
+          onPaint={painting ? onPaint : null}
           onHover={setHoverSlot}
         />
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="order-3 flex flex-col gap-4 border-t border-dashed border-line p-4 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:border-t-0 lg:border-l"
-      >
-        <BestTimes windows={bestWindows(event, counts)} total={total} onHover={setHoverWindow} />
-        <div className="flex items-center gap-1.5 text-[11px] tabular-nums text-ink-3">
+      <div className="order-3 flex min-h-0 flex-col gap-4 overflow-y-auto border-t border-line p-5 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:border-t-0 lg:border-l">
+        <BestTimes
+          ranked={ranked}
+          view={view}
+          duration={event.duration}
+          withOptional={hasOptional ? withOptional : null}
+          onWithOptional={setWithOptional}
+          votable={votable}
+          tallies={tallies}
+          myVote={me?.vote ?? null}
+          onVote={me ? onVote : null}
+          onHover={setHoverWindow}
+        />
+        <div className="flex h-4 shrink-0 items-center gap-1.5 text-[12px] text-ink-3 tabular-nums">
           0
           <span className="flex gap-0.5">
             {HEAT.map((c) => (
               <span key={c} className={`size-2.5 rounded-[3px] shadow-[inset_0_0_0_1px_var(--color-line)] ${c}`} />
             ))}
           </span>
-          {total} free
+          {group.length} free
         </div>
-      </motion.div>
+        <div className="flex min-h-0 flex-1 flex-col border-t border-line pt-4">
+          <People
+            people={everyone}
+            me={me?.name ?? null}
+            selected={picked}
+            onToggle={togglePicked}
+            onClear={() => setPicked(new Set())}
+            onHover={setHoverPerson}
+          />
+        </div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="order-4 border-t border-dashed border-line p-4 lg:col-start-1 lg:row-start-2 lg:border-r"
-      >
-        <Roster
-          people={people}
-          myName={myName}
-          mineCount={mine.size}
-          free={hoverSlot ? (counts.get(hoverSlot) ?? []) : null}
-          total={total}
-          selected={selected}
-          onSaveName={saveName}
-          onClaim={claim}
-          onHoverPerson={setHoverPerson}
-          onTogglePerson={togglePerson}
-        />
-      </motion.div>
-    </motion.section>
+      {readout && (
+        <Sheet label="Who’s free" onClose={() => setHoverSlot(null)} className="lg:hidden">
+          {readout}
+        </Sheet>
+      )}
+    </section>
   );
 };
+

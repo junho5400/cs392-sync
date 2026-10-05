@@ -84,13 +84,8 @@ export const createEvent = async (draft: SyncEventDraft): Promise<string> => {
   try {
     const { uid } = await currentUser();
     const id = newId();
-    const event = {
-      ...draft,
-      timeZone: draft.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-      duration: draft.duration ?? Math.min(60, draft.end - draft.start),
-    };
     await writeBatch(db)
-      .set(eventRef(id), { ...event, createdBy: uid, createdAt: serverTimestamp() })
+      .set(eventRef(id), { ...draft, createdBy: uid, createdAt: serverTimestamp() })
       .commit();
     return id;
   } catch (err) {
