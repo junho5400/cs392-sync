@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from './Icon';
+import { IconButton } from './ui/IconButton';
 import { cellAt } from '../utilities/cellAt';
 import { toDate, toIso } from '../utilities/slots';
 
@@ -33,26 +33,26 @@ export const MonthPicker = ({ selected, onChange }: Props) => {
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[13px] font-medium text-ink-1">
-          {label(first)} <span className="text-ink-3">– {label(last)}</span>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[13px] font-semibold text-ink">
+          {label(first)}
+          <span className="mx-2 font-normal text-ink-3">to</span>
+          {label(last)}
         </p>
-        <div className="flex">
+        <div className="-mr-1.5 flex">
           {([-4, 4] as const).map((n) => (
-            <button
+            <IconButton
               key={n}
-              aria-label={n < 0 ? 'Earlier weeks' : 'Later weeks'}
+              icon={n < 0 ? 'left' : 'right'}
+              label={n < 0 ? 'Earlier weeks' : 'Later weeks'}
               onClick={() => setFirst(addDays(first, n * 7))}
-              className="grid size-7 place-items-center rounded-lg text-ink-2 transition-colors hover:bg-sunken hover:text-ink active:scale-[0.96]"
-            >
-              <Icon name={n < 0 ? 'left' : 'right'} />
-            </button>
+            />
           ))}
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1">
         {DOW.map((d) => (
-          <span key={d} className="pb-1 text-center text-[10.5px] font-medium uppercase tracking-[0.1em] text-ink-2">
+          <span key={d} className="pb-1.5 text-center text-[12px] text-ink-3">
             {d}
           </span>
         ))}
@@ -86,16 +86,12 @@ export const MonthPicker = ({ selected, onChange }: Props) => {
               aria-pressed={on}
               aria-label={d.toDateString()}
               onClick={(e) => e.detail === 0 && apply(date, !on)}
-              className={`relative grid h-9 place-items-center rounded-lg text-[12.5px] font-medium tabular-nums transition-colors duration-150 ${
-                past
-                  ? 'font-light text-ink-3'
-                  : on
-                    ? 'bg-brand text-brand-ink'
-                    : 'bg-sunken text-ink-1 hover:bg-line'
+              className={`relative grid h-10 place-items-center rounded-lg text-[13px] tabular-nums transition-colors duration-150 ${
+                past ? 'text-ink-3/60' : on ? 'bg-brand font-medium text-brand-ink' : 'font-medium text-ink-1 hover:bg-sunken'
               }`}
             >
               {d.getDate() === 1 && (
-                <span className="absolute top-0.5 text-[8.5px] font-semibold uppercase tracking-wider opacity-60">
+                <span className="absolute top-0.5 text-[9px] font-medium opacity-60">
                   {d.toLocaleDateString('en-US', { month: 'short' })}
                 </span>
               )}
