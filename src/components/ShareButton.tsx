@@ -16,7 +16,9 @@ export const ShareButton = () => {
 
   return (
     <Button icon={copied ? 'check' : 'link'} onClick={copy}>
-      {copied ? 'Copied' : 'Copy link'}
+      <span key={copied ? 'copied' : 'copy'} className={copied ? 'fade-in' : ''}>
+        {copied ? 'Copied' : 'Copy link'}
+      </span>
     </Button>
   );
 };

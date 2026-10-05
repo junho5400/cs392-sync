@@ -7,7 +7,7 @@ interface Props {
 }
 
 export const NotFound = ({ title = 'Event not found', body = 'Check the link or start a new event.', onNew }: Props) => (
-  <section className="mx-auto flex w-full max-w-[400px] flex-col gap-4 rounded-xl bg-surface p-6 shadow-card">
+  <section className="rise-in mx-auto flex w-full max-w-[400px] flex-col gap-4 rounded-xl bg-surface p-6 shadow-card">
     <div className="flex flex-col gap-1">
       <h1 className="text-[20px] font-medium tracking-[-0.015em] text-ink">{title}</h1>
       <p className="text-[13px] text-ink-2">{body}</p>

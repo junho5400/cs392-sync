@@ -45,7 +45,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = ({ variant = 'secondary', size = 'sm', icon, className = '', children, ...rest }: Props) => (
   <button
     {...rest}
-    className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap transition-[color,background-color,opacity,text-decoration-color] duration-150 disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${variant === 'text' ? 'text-[13px]' : SIZES[size]} ${className}`}
+    className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap transition-[color,background-color,opacity,text-decoration-color,transform,box-shadow] duration-150 ease-[var(--ease-soft)] active:enabled:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none motion-reduce:active:scale-100 ${VARIANTS[variant]} ${variant === 'text' ? 'text-[13px]' : SIZES[size]} ${className}`}
   >
     {variant === 'google' ? <GoogleCalendarIcon /> : icon && <Icon name={icon} className="size-3.5" />}
     {children}

@@ -79,7 +79,7 @@ export const BestTimes = ({ ranked, view, duration, withOptional, onWithOptional
             </span>
             {votable ? (
               <span
-                className={`flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] font-semibold tabular-nums ${
+                className={`flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] font-semibold tabular-nums transition-colors duration-150 ease-[var(--ease-soft)] motion-reduce:transition-none ${
                   picked ? 'bg-brand text-brand-ink' : 'bg-sunken text-ink-1'
                 }`}
               >

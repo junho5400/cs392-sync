@@ -17,6 +17,7 @@ interface Props {
 export const MonthPicker = ({ selected, onChange }: Props) => {
   const today = toIso(new Date());
   const [first, setFirst] = useState(() => addDays(new Date(), -new Date().getDay()));
+  const [page, setPage] = useState(0);
   const [mode, setMode] = useState<boolean | null>(null);
   const days = Array.from({ length: WEEKS * 7 }, (_, i) => toIso(addDays(first, i)));
   const last = toDate(days[days.length - 1]);
@@ -34,7 +35,7 @@ export const MonthPicker = ({ selected, onChange }: Props) => {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-ink">
+        <p key={page} className={`text-[13px] font-semibold text-ink ${page ? 'fade-in' : ''}`}>
           {label(first)}
           <span className="mx-2 font-normal text-ink-3">to</span>
           {label(last)}
@@ -45,7 +46,10 @@ export const MonthPicker = ({ selected, onChange }: Props) => {
               key={n}
               icon={n < 0 ? 'left' : 'right'}
               label={n < 0 ? 'Earlier weeks' : 'Later weeks'}
-              onClick={() => setFirst(addDays(first, n * 7))}
+              onClick={() => {
+                setFirst(addDays(first, n * 7));
+                setPage((p) => p + 1);
+              }}
             />
           ))}
         </div>
@@ -58,7 +62,8 @@ export const MonthPicker = ({ selected, onChange }: Props) => {
         ))}
       </div>
       <div
-        className="grid touch-none select-none grid-cols-7 gap-1"
+        key={page}
+        className={`grid touch-none select-none grid-cols-7 gap-1 ${page ? 'fade-in' : ''}`}
         onPointerDown={(e) => {
           const date = cellAt(e, 'date');
           if (!date || date < today) return;

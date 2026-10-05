@@ -7,7 +7,7 @@ const Section = ({ title, children }: { title: string; children: string }) => (
 
 /** Public policy linked from the homepage. The wording matches what the app actually stores. */
 export const Privacy = () => (
-  <article className="mx-auto flex w-full max-w-[640px] flex-col gap-6 rounded-xl bg-surface p-6 shadow-card sm:p-8">
+  <article className="rise-in mx-auto flex w-full max-w-[640px] flex-col gap-6 rounded-xl bg-surface p-6 shadow-card sm:p-8">
     <header className="flex flex-col gap-1.5">
       <h1 className="text-[22px] font-medium tracking-[-0.015em] text-ink">Privacy policy</h1>
       <p className="text-[13px] text-ink-3">October 5, 2026</p>

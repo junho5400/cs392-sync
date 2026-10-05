@@ -50,7 +50,7 @@ const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 /** Autosave fires this long after you stop painting. */
 const AUTOSAVE_MS = 500;
 
-const CARD = 'mx-auto w-full max-w-[1160px] rounded-xl bg-surface shadow-card';
+const CARD = 'rise-in mx-auto w-full max-w-[1160px] rounded-xl bg-surface shadow-card';
 
 export const EventView = ({ id, onNew }: Props) => {
   const [board, setBoard] = useState<Board | null | undefined>(undefined);
@@ -219,6 +219,7 @@ export const EventView = ({ id, onNew }: Props) => {
   const readout = hoverSlot && <Readout slot={hoverSlot} view={view} people={group} />;
 
   return (
+    <>
     <section className={`${CARD} flex flex-col lg:grid lg:h-[640px] lg:max-h-full lg:min-h-0 lg:grid-cols-[264px_minmax(0,1fr)_256px] lg:grid-rows-[auto_minmax(0,1fr)]`}>
       <div className="order-1 flex flex-col gap-3 p-5 lg:col-start-1 lg:row-start-1 lg:border-r lg:border-line">
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -248,7 +249,7 @@ export const EventView = ({ id, onNew }: Props) => {
       </div>
 
       <div className="order-4 min-h-0 border-t border-line p-5 lg:col-start-1 lg:row-start-2 lg:overflow-y-auto lg:border-r">
-        {readout && <div className="hidden h-full lg:block">{readout}</div>}
+        {readout && <div className="fade-in hidden h-full lg:block">{readout}</div>}
         <div className={readout ? 'lg:hidden' : ''}>
           {me ? (
             <div className="flex flex-col gap-3">
@@ -372,12 +373,13 @@ export const EventView = ({ id, onNew }: Props) => {
         </div>
       </div>
 
-      {readout && (
-        <Sheet label="Who’s free" onClose={() => setHoverSlot(null)} className="lg:hidden">
-          {readout}
-        </Sheet>
-      )}
     </section>
+    {readout && (
+      <Sheet label="Who’s free" onClose={() => setHoverSlot(null)} className="lg:hidden">
+        {readout}
+      </Sheet>
+    )}
+    </>
   );
 };
 

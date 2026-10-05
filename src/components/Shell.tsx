@@ -7,7 +7,7 @@ export const Shell = ({ children, scroll = false }: PropsWithChildren<{ scroll?:
     <header className="mx-auto flex h-14 w-full max-w-[1200px] shrink-0 items-center justify-between px-4 sm:px-6">
       <Brand />
       <div className="flex items-center gap-4">
-        <a href="/privacy" className="text-[13px] text-ink-3 hover:text-ink">
+        <a href="/privacy" className="text-[13px] text-ink-3 transition-colors duration-150 ease-[var(--ease-soft)] hover:text-ink motion-reduce:transition-none">
           Privacy
         </a>
         <ThemeToggle />
