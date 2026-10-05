@@ -13,6 +13,7 @@ import { SectionTitle } from './ui/SectionTitle';
 import { Segmented } from './ui/Segmented';
 import { Combobox } from './ui/Combobox';
 import { Sheet } from './ui/Sheet';
+import { connectCalendar, fetchBusy } from '../services/calendar';
 import { join, saveSlots, saveVote, watchBoard, type Board, type JoinInput } from '../services/meet';
 import type { Person } from '../types';
 import {
@@ -20,11 +21,13 @@ import {
   STEP,
   answered,
   bestWindows,
+  calendarBounds,
   commonSlots,
   countMap,
   counted,
   fmtEventRange,
   fmtTime,
+  freeKeys,
   paint,
   viewOf,
   voteKey,
@@ -64,6 +67,8 @@ export const EventView = ({ id, onNew }: Props) => {
   const [hoverPerson, setHoverPerson] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [save, setSave] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [cal, setCal] = useState<'idle' | 'loading'>('idle');
+  const [calError, setCalError] = useState('');
   const loadedFor = useRef<string | null>(null);
   const dirty = useRef(false);
   const pending = useRef<{ name: string; slots: Set<string> } | null>(null);
@@ -148,6 +153,25 @@ export const EventView = ({ id, onNew }: Props) => {
         : null;
   const spotlight = hoverWindow ? 'window' : highlight ? 'person' : null;
   const painting = mode === 'mine' && me !== null;
+
+  const fillCalendar = async () => {
+    if (!board || cal === 'loading') return;
+    setCal('loading');
+    setCalError('');
+    try {
+      const token = await connectCalendar();
+      const { timeMin, timeMax } = calendarBounds(board.event);
+      const free = freeKeys(board.event, await fetchBusy(token, timeMin, timeMax));
+      dirty.current = true;
+      setSave('saving');
+      setMode('mine');
+      dispatch({ type: 'load', slots: free });
+    } catch (err) {
+      setCalError(err instanceof Error ? err.message : 'Could not read your calendar.');
+    } finally {
+      setCal('idle');
+    }
+  };
 
   const onPaint = (keys: string[], on: boolean) => {
     dirty.current = true;
@@ -243,6 +267,19 @@ export const EventView = ({ id, onNew }: Props) => {
                 <span className="lg:hidden">Tap</span>
                 <span className="hidden lg:inline">Hover</span> a time to see who’s free
               </p>
+              {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                <div className="flex flex-col gap-1.5">
+                  <Button variant="secondary" icon="calendar" disabled={cal === 'loading'} onClick={() => void fillCalendar()}>
+                    {cal === 'loading' ? 'Opening calendar…' : 'Fill from calendar'}
+                  </Button>
+                  <p className={`truncate text-[12px] text-ink-3 ${event.kind === 'dow' ? '' : 'hidden'}`}>From this week</p>
+                  {calError && (
+                    <p role="alert" className="truncate text-[12px] text-red-600 dark:text-red-400" title={calError}>
+                      {calError}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <JoinForm onJoin={onJoin} />
