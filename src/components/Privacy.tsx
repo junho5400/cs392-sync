@@ -17,7 +17,7 @@ export const Privacy = () => (
     </header>
 
     <Section title="What Sync stores">
-      Sync stores the event name, the dates or weekdays, the time range, the time zone, and the meeting length. It also stores the name you type, whether you are optional, the times you mark free, and a vote for a suggested time if you cast one. Firebase Authentication gives the browser an anonymous id. Sync does not ask for your email address to use the page, and that id is not your Google account. If you set a password on your name, Sync stores only a hash of it and cannot read the password back. This browser remembers which name you used for an event.
+      Sync stores the event name, the dates or weekdays, the time range, the time zone, and the meeting length. It also stores the name you type, whether you are optional, the times you mark free, and up to three votes for suggested times if you cast them. Firebase Authentication gives the browser an anonymous id. Sync does not ask for your email address to use the page, and that id is not your Google account. If you set a password on your name, Sync stores only a hash of it and cannot read the password back. This browser remembers which name you used for an event.
     </Section>
 
     <Section title="Who can see an event">

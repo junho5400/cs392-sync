@@ -11,8 +11,7 @@ interface Drag {
 
 /**
  * One grid, two emphases. "mine": your marks are solid and the group shows faintly
- * underneath, so you can paint toward popular times. "group": full heat with counts,
- * your marks reduced to an outline.
+ * underneath, so you can paint toward popular times. "group": full heat with counts.
  */
 export const HeatGrid = ({ view, mode, counts, total, mine, highlight, spotlight, onPaint, onHover }: SurfaceProps) => {
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -174,16 +173,9 @@ export const HeatGrid = ({ view, mode, counts, total, mine, highlight, spotlight
                     onKeyDown={(e) => moveFocus(e, cell)}
                     onClick={(e) => painting && e.detail === 0 && onPaint?.([key], !mine.has(key))}
                     onFocus={() => point(cell)}
-                    className={`relative grid place-items-center rounded-[5px] text-[11px] font-semibold tabular-nums transition-[background-color,opacity] duration-150 ${fill} ${dim} ${ring}`}
+                    className={`grid place-items-center rounded-[5px] text-[11px] font-semibold tabular-nums transition-[background-color,opacity] duration-150 ${fill} ${dim} ${ring}`}
                   >
-                    {mode === 'group' && (
-                      <>
-                        {on && !erased && (
-                          <span aria-hidden="true" className="absolute inset-0 rounded-[5px] shadow-[inset_0_0_0_1.5px_var(--color-brand)]" />
-                        )}
-                        <span className="text-ink-1/80">{erased ? '' : count || ''}</span>
-                      </>
-                    )}
+                    {mode === 'group' && <span className="text-ink-1/80">{erased ? '' : count || ''}</span>}
                   </button>
                 );
               })}

@@ -20,7 +20,7 @@ interface Props {
 export const Avatar = ({ name, you = false, className = 'size-5 text-[9px]' }: Props) => (
   <span
     aria-hidden="true"
-    className={`grid shrink-0 place-items-center rounded-full font-semibold ring-2 ring-surface ${
+    className={`grid shrink-0 place-items-center rounded-full font-semibold ${
       you ? 'bg-brand text-brand-ink' : tint(name)
     } ${className}`}
   >
