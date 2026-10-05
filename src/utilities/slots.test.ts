@@ -14,6 +14,7 @@ import {
   rectKeys,
   slotKey,
   viewOf,
+  byVotes,
   voteKey,
 } from './slots';
 import type { Person, SyncEvent } from '../types';
@@ -29,7 +30,7 @@ const who = (name: string, slots: string[], optional = false): Person => ({
   name,
   slots: new Set(slots),
   optional,
-  vote: null,
+  votes: [],
 });
 
 test('countMap lists who is free per slot', () => {
@@ -103,6 +104,22 @@ test('votes open only with two or more blocks everyone counted can make', () => 
     voteKey({ date: '2026-10-05', start: 540, end: 600 }),
     voteKey({ date: '2026-10-05', start: 570, end: 630 }),
   ]);
+});
+
+test('windows stay in time order until everyone has voted', () => {
+  const windows = [
+    { date: '2026-10-05', start: 540, end: 600, names: [], out: [] },
+    { date: '2026-10-05', start: 570, end: 630, names: [], out: [] },
+    { date: '2026-10-05', start: 600, end: 660, names: [], out: [] },
+  ];
+  const tallies = new Map([
+    [voteKey(windows[2]), 2],
+    [voteKey(windows[0]), 2],
+    [voteKey(windows[1]), 1],
+  ]);
+  const count = (w: (typeof windows)[number]) => tallies.get(voteKey(w)) ?? 0;
+  expect(byVotes(windows, count, false).map((w) => w.start)).toEqual([540, 570, 600]);
+  expect(byVotes(windows, count, true).map((w) => w.start)).toEqual([540, 600, 570]);
 });
 
 test('an optional person who cannot make it does not close required votes', () => {

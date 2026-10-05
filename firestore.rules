@@ -9,8 +9,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function voteItem(v) {
+      return v is string && v.size() > 0 && v.size() <= 40;
+    }
+
+    function votesOk(v) {
+      return v == null
+        || voteItem(v)
+        || (v is list && v.size() <= 3
+          && (v.size() < 1 || voteItem(v[0]))
+          && (v.size() < 2 || voteItem(v[1]))
+          && (v.size() < 3 || voteItem(v[2])));
+    }
+
     function slotsOk(d) {
-      return d.slots is list && d.slots.size() <= 2000 && (d.vote == null || (d.vote is string && d.vote.size() <= 40));
+      return d.slots is list && d.slots.size() <= 2000 && votesOk(d.vote);
     }
 
     match /events/{eventId} {
