@@ -135,6 +135,14 @@ export const EventView = ({ id, onNew }: Props) => {
     };
   }, [flush]);
 
+  // A visitor's draft lives in memory only: closing loses it unless they join first.
+  useEffect(() => {
+    if (myName || !mine.size) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [myName, mine.size]);
+
   if (board === undefined && !error) return <section aria-busy="true" className={`${CARD} h-[640px] max-h-full`} />;
   if (!board) {
     return error ? (

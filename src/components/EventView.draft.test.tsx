@@ -122,6 +122,33 @@ test('painting then clearing before join never wipes stored slots', async () => 
   expect(cell('2026-10-05|540')).toHaveTextContent('1');
 });
 
+test('closing with a draft warns; without one it does not', async () => {
+  render(<EventView id="e1" onNew={vi.fn()} />);
+  emit(boardOf([], null));
+  const closing = () => {
+    const e = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+  expect(closing()).toBe(false);
+  paint('2026-10-05|540');
+  expect(closing()).toBe(true);
+  paint('2026-10-05|540');
+  expect(closing()).toBe(false);
+});
+
+test('closing after joining never warns', async () => {
+  render(<EventView id="e1" onNew={vi.fn()} />);
+  emit(boardOf([], null));
+  paint('2026-10-05|540');
+  joinAs('Zed');
+  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, vote: null }], 'Zed'));
+  await screen.findByText('My times');
+  const e = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(e);
+  expect(e.defaultPrevented).toBe(false);
+});
+
 test('a remembered name loads stored slots instead of a draft', async () => {
   render(<EventView id="e1" onNew={vi.fn()} />);
   emit(
