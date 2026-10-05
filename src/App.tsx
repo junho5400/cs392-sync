@@ -6,7 +6,7 @@ import { EventView } from './components/EventView';
 import { NotFound } from './components/NotFound';
 import { Shell } from './components/Shell';
 import { samplePeople, sampleEvent } from './services/sample';
-import { createEvent } from './services/events';
+import { createEvent } from './services/meet';
 import { eventPath, parseRoute, type Route } from './services/route';
 
 export const App = () => {

@@ -1,8 +1,13 @@
 export type SyncEvent = {
+  id?: string;
   title: string;
   /** Minutes from midnight. `start` is inclusive, `end` exclusive. */
   start: number;
   end: number;
+  /** IANA zone the slots are stored in. The creator's zone when omitted. */
+  timeZone?: string;
+  /** Meeting length in minutes. 60 when omitted. */
+  duration?: number;
 } & (
   | {
       kind: 'dates';
@@ -16,10 +21,17 @@ export type SyncEvent = {
     }
 );
 
+/** An event before it has a link. `id` is already optional on SyncEvent. */
+export type SyncEventDraft = SyncEvent;
+
 export interface Person {
   name: string;
   /** Slot keys from `slotKey`. */
   slots: Set<string>;
+  /** Set when this person does not have to attend. */
+  optional?: boolean;
+  /** A vote key, or null. */
+  vote?: string | null;
 }
 
 /** Props every availability surface (grid, bars, list) receives. */

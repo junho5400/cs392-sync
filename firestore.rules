@@ -1,46 +1,82 @@
 rules_version = '2';
 
-// Sync v1: anyone with the link views and submits. No sign-in, no expiry.
-// Bounds mirror src/services/events.ts; the client parser validates semantics
-// (date formats, slot shapes) that rules cannot express over lists.
+// Anyone with a link can read a board. Each browser signs in anonymously; a person doc
+// is edited only by the uid that owns it. Taking over a name (another device, or after
+// "Not you?") needs a claim doc whose proof matches the unreadable password hash.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function validEvent(d) {
-      return d.keys().hasOnly(['title', 'kind', 'dates', 'days', 'start', 'end', 'createdAt'])
-        && d.title is string && d.title.size() >= 1 && d.title.size() <= 200
-        && d.kind is string
-        && d.start is int && d.end is int
-        && d.start >= 0 && d.start < d.end && d.end <= 1440
-        && (d.end - d.start) % 30 == 0
-        && (
-          (d.kind == 'dates' && 'dates' in d && !('days' in d)
-            && d.dates is list && d.dates.size() >= 1 && d.dates.size() <= 366)
-          || (d.kind == 'dow' && 'days' in d && !('dates' in d)
-            && d.days is list && d.days.size() >= 1 && d.days.size() <= 7
-            && d.days.hasOnly([0, 1, 2, 3, 4, 5, 6]))
-        );
+    function signedIn() {
+      return request.auth != null;
     }
 
-    function validResponse(d) {
-      return d.keys().hasOnly(['name', 'nameLower', 'slots', 'updatedAt'])
-        && d.name is string && d.name.size() >= 1 && d.name.size() <= 80
-        && d.nameLower is string && d.nameLower.size() >= 1 && d.nameLower.size() <= 80
-        && d.slots is list && d.slots.size() <= 20000;
+    function slotsOk(d) {
+      return d.slots is list && d.slots.size() <= 2000 && (d.vote == null || (d.vote is string && d.vote.size() <= 40));
     }
 
     match /events/{eventId} {
-      // Get only: events are unguessable ids, never listed.
-      allow get: if true;
-      allow create: if validEvent(request.resource.data);
-      // Events are immutable in v1: no edit, no delete, no expiry.
-      allow update, delete: if false;
+      function at(col, key) {
+        return /databases/$(database)/documents/events/$(eventId)/$(col)/$(key);
+      }
 
-      match /responses/{responseId} {
+      allow get: if true;
+      allow list: if false;
+      allow update, delete: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['title', 'start', 'end', 'timeZone', 'duration', 'kind', 'dates', 'days', 'createdBy', 'createdAt'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.timeZone is string && request.resource.data.timeZone.size() <= 64
+        && request.resource.data.kind in ['dates', 'dow']
+        && (request.resource.data.kind == 'dates'
+          ? request.resource.data.dates is list && request.resource.data.dates.size() > 0 && request.resource.data.dates.size() <= 35
+          : request.resource.data.days is list && request.resource.data.days.size() > 0 && request.resource.data.days.size() <= 7)
+        && request.resource.data.start is int && request.resource.data.end is int
+        && request.resource.data.start >= 0 && request.resource.data.end <= 1440
+        && request.resource.data.start < request.resource.data.end
+        && request.resource.data.duration is int && request.resource.data.duration > 0
+        && request.resource.data.duration <= request.resource.data.end - request.resource.data.start;
+
+      match /people/{key} {
         allow read: if true;
-        allow create, update: if validResponse(request.resource.data);
-        // No user-facing delete in v1; delete stays open so a rename can move
-        // a response from the old name to the new one.
-        allow delete: if true;
+        allow delete: if false;
+        allow create: if signedIn()
+          && existsAfter(/databases/$(database)/documents/events/$(eventId))
+          && request.resource.data.keys().hasOnly(['name', 'slots', 'optional', 'vote', 'hasPassword', 'uid'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30
+          && request.resource.data.optional is bool
+          && request.resource.data.hasPassword is bool
+          && request.resource.data.hasPassword == existsAfter(at('secrets', key))
+          && slotsOk(request.resource.data);
+        allow update: if signedIn() && (
+          (resource.data.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['slots', 'vote'])
+            && slotsOk(request.resource.data))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
+            && request.resource.data.uid == request.auth.uid
+            && getAfter(at('claims', request.auth.uid)).data.key == key)
+        );
+      }
+
+      match /secrets/{key} {
+        allow read, update, delete: if false;
+        allow create: if signedIn()
+          && !exists(at('people', key))
+          && getAfter(at('people', key)).data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['hash'])
+          && request.resource.data.hash is string && request.resource.data.hash.size() == 64;
+      }
+
+      match /claims/{uid} {
+        allow read, delete: if false;
+        allow create, update: if signedIn()
+          && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['key', 'proof'])
+          && request.resource.data.key is string
+          && exists(at('people', request.resource.data.key))
+          && (!exists(at('secrets', request.resource.data.key))
+            || get(at('secrets', request.resource.data.key)).data.hash == request.resource.data.proof);
       }
     }
   }

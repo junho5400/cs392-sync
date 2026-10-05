@@ -6,8 +6,7 @@ import { Icon } from './Icon';
 import { Roster } from './Roster';
 import { ShareButton } from './ShareButton';
 import type { Person, SyncEvent } from '../types';
-import { deleteResponse, findPerson, nameKey, saveResponse } from '../services/events';
-import { rememberName } from '../services/storage';
+import { join, saveSlots } from '../services/meet';
 import { CARD_SPRING } from '../utilities/motion';
 import {
   HEAT,
@@ -56,9 +55,10 @@ export const AUTOSAVE_MS = 700;
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 const snap = (name: string, slots: Set<string>) => `${name}\n${[...slots].sort().join(' ')}`;
+const nameKey = (name: string) => name.trim().toLowerCase();
+const findPerson = (list: Person[], name: string) => list.find((p) => nameKey(p.name) === nameKey(name));
 
 export const EventView = ({ event, eventId, initialPeople, initialMine, initialName, onNew }: Props) => {
-  const [people, setPeople] = useState(initialPeople);
   const [{ slots: mine, history }, dispatch] = useReducer(reduce, {
     slots: initialMine ?? new Set<string>(),
     history: [],
@@ -70,6 +70,7 @@ export const EventView = ({ event, eventId, initialPeople, initialMine, initialN
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState<SaveState>(eventId && initialName ? 'saved' : 'idle');
   const lastSaved = useRef<string | null>(initialName ? snap(initialName, initialMine ?? new Set()) : null);
+  const people = initialPeople.filter((p) => p.name !== myName);
 
   const me = myName ?? 'You';
   const everyone = mine.size || myName ? [...people, { name: me, slots: mine }] : people;
@@ -111,8 +112,21 @@ export const EventView = ({ event, eventId, initialPeople, initialMine, initialN
   const persist = useCallback(async (id: string, name: string, slots: Set<string>) => {
     setSaveState('saving');
     try {
-      await saveResponse(id, name, slots);
+      await saveSlots(id, name, slots);
       lastSaved.current = snap(name, slots);
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+  }, []);
+
+  const adopt = useCallback(async (id: string, name: string, slots: Set<string>) => {
+    setSaveState('saving');
+    try {
+      const joined = await join(id, { name, password: '', optional: false });
+      setMyName(joined);
+      await saveSlots(id, joined, slots);
+      lastSaved.current = snap(joined, slots);
       setSaveState('saved');
     } catch {
       setSaveState('error');
@@ -145,35 +159,21 @@ export const EventView = ({ event, eventId, initialPeople, initialMine, initialN
   const claim = (name: string) => {
     const person = people.find((p) => p.name === name);
     if (person) dispatch({ type: 'merge', slots: person.slots });
-    setPeople(people.filter((p) => p.name !== name));
     setMyName(name);
-    if (eventId) {
-      rememberName(eventId, name);
-      // Adopt their slots; only write when your local marks change the union.
-      if (mine.size) void persist(eventId, name, new Set([...mine, ...(person?.slots ?? [])]));
-      else lastSaved.current = snap(name, person?.slots ?? new Set());
-    }
+    if (eventId) void adopt(eventId, name, new Set([...mine, ...(person?.slots ?? [])]));
   };
 
   const saveName = (name: string) => {
     const existing = findPerson(people, name);
+    const from = myName;
     if (existing) {
-      // Merge into them; your old response (if any) goes away with the rename.
-      const from = myName;
       claim(existing.name);
       remapSelection(from, existing.name);
-      if (eventId && from && nameKey(from) !== nameKey(existing.name))
-        void deleteResponse(eventId, from).catch(() => {});
       return;
     }
-    const from = myName;
     remapSelection(from, name);
     setMyName(name);
-    if (eventId) {
-      rememberName(eventId, name);
-      void persist(eventId, name, mine);
-      if (from && nameKey(from) !== nameKey(name)) void deleteResponse(eventId, from).catch(() => {});
-    }
+    if (eventId) void adopt(eventId, name, mine);
   };
 
   return (
