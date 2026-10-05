@@ -29,7 +29,7 @@ export const Readout = ({ slot, view, people }: Props) => {
             'No responses yet'
           )}
         </p>
-        <p className="text-[12px] text-ink-2">
+        <p className="mt-1 text-[12px] text-ink-2">
           {fmtCol(cell.col)} · {fmtTime(cell.min)} – {fmtTime((cell.min + STEP) % 1440)}
         </p>
       </div>
