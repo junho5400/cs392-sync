@@ -83,10 +83,13 @@ export const Combobox = ({ label, value, options, onChange, placeholder = 'Searc
         {icon && <Icon name={icon} className="size-3.5 shrink-0 text-ink-3" />}
         <span className="min-w-0 flex-1 truncate">{current?.label ?? value}</span>
         {current?.detail && <span className="text-[12px] font-normal text-ink-3">{current.detail}</span>}
-        <Icon name="down" className="size-3.5 shrink-0 text-ink-3" />
+        <Icon
+          name="down"
+          className={`size-3.5 shrink-0 text-ink-3 transition-transform duration-200 ease-[var(--ease-soft)] motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+        />
       </button>
       {open && (
-        <div className="absolute inset-x-0 top-full z-30 mt-1.5 overflow-hidden rounded-[10px] bg-surface shadow-pop">
+        <div className="pop-in absolute inset-x-0 top-full z-30 mt-1.5 overflow-hidden rounded-[10px] bg-surface shadow-pop">
           <input
             autoFocus
             value={query}
@@ -111,7 +114,7 @@ export const Combobox = ({ label, value, options, onChange, placeholder = 'Searc
                 aria-selected={o.value === value}
                 onPointerEnter={() => setActive(i)}
                 onClick={() => pick(o)}
-                className={`flex h-8 cursor-pointer items-center gap-2 rounded-md px-2.5 text-[13px] ${
+                className={`flex h-8 cursor-pointer items-center gap-2 rounded-md px-2.5 text-[13px] transition-colors duration-150 ease-[var(--ease-soft)] motion-reduce:transition-none ${
                   i === active ? 'bg-sunken text-ink' : 'text-ink-1'
                 } ${o.value === value ? 'font-semibold' : ''}`}
               >

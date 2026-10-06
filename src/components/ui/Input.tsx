@@ -7,8 +7,8 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = ({ suffix, className = '', ...rest }: Props) =>
   suffix ? (
-    <span className={`relative flex shrink-0 ${className}`}>
-      <input {...rest} className="control pr-[34px] tabular-nums" />
+    <span className={`relative flex shrink-0 overflow-hidden ${className}`}>
+      <input {...rest} className="control min-w-0 pr-[34px] tabular-nums" />
       <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[13px] text-ink-3">
         {suffix}
       </span>

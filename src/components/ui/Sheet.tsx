@@ -16,7 +16,7 @@ export const Sheet = ({ label, onClose, className = '', children }: Props) => {
   }, [onClose]);
 
   return (
-    <div role="dialog" aria-label={label} className={`fixed inset-x-3 bottom-3 z-20 rounded-xl bg-surface p-5 shadow-pop ${className}`}>
+    <div role="dialog" aria-label={label} className={`sheet-in fixed inset-x-3 bottom-3 z-20 rounded-xl bg-surface p-5 shadow-pop ${className}`}>
       <IconButton icon="x" label="Close" onClick={onClose} className="absolute top-2 right-2" />
       {children}
     </div>

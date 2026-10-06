@@ -20,7 +20,7 @@ export const Segmented = <T extends string | number>({ label, value, options, on
     >
       <span
         aria-hidden="true"
-        className="absolute inset-y-[3px] left-[3px] rounded-full bg-raise shadow-raise transition-transform duration-200 ease-[cubic-bezier(0.3,0.7,0.4,1)] motion-reduce:transition-none"
+        className="absolute inset-y-[3px] left-[3px] rounded-full bg-raise shadow-raise transition-transform duration-[240ms] ease-[var(--ease-soft)] motion-reduce:transition-none"
         style={{ width: `calc((100% - 6px) / ${options.length})`, transform: `translateX(${Math.max(index, 0) * 100}%)` }}
       />
       {options.map((o) => (

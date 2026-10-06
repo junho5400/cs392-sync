@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CreateCard } from './components/CreateCard';
 import { EventView } from './components/EventView';
 import { NotFound } from './components/NotFound';
+import { Privacy } from './components/Privacy';
 import { Shell } from './components/Shell';
 
 const eventIdOf = (path: string) => /^\/e\/([a-z0-9]+)\/?$/.exec(path)?.[1] ?? null;
@@ -21,12 +22,15 @@ export const App = () => {
   };
 
   const id = eventIdOf(path);
+  const privacy = path === '/privacy';
   return (
-    <Shell>
+    <Shell scroll={privacy}>
       {id ? (
         <EventView key={id} id={id} onNew={() => go('/')} />
       ) : path === '/' ? (
         <CreateCard onCreated={(newId) => go(`/e/${newId}`)} />
+      ) : privacy ? (
+        <Privacy />
       ) : (
         <NotFound onNew={() => go('/')} />
       )}
