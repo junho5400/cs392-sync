@@ -72,17 +72,12 @@ export const EventView = ({ id, onNew }: Props) => {
   const loadedFor = useRef<string | null>(null);
   const dirty = useRef(false);
   const pending = useRef<{ name: string; slots: Set<string> } | null>(null);
+  /** Set while a join is in flight so the load below commits the draft instead of replacing it. */
+  const joining = useRef(false);
 
   useEffect(() => watchBoard(id, setBoard, setError), [id]);
 
   const stored = board && myName ? board.people.find((p) => sameName(p.name, myName)) : undefined;
-
-  useEffect(() => {
-    if (!stored || loadedFor.current === stored.name) return;
-    loadedFor.current = stored.name;
-    dispatch({ type: 'load', slots: stored.slots });
-    setMode(stored.slots.size ? 'group' : 'mine');
-  }, [stored]);
 
   const flush = useCallback(() => {
     const next = pending.current;
@@ -99,6 +94,26 @@ export const EventView = ({ id, onNew }: Props) => {
       },
     );
   }, [id]);
+
+  useEffect(() => {
+    if (!stored || loadedFor.current === stored.name) return;
+    loadedFor.current = stored.name;
+    // Draft-first commit: a join with painted marks merges them with the name's stored slots.
+    const wasJoining = joining.current;
+    joining.current = false;
+    // A fresh join-load supersedes pre-join paint state; without this the autosave
+    // below would queue the stale pre-merge marks after the merge flush.
+    if (wasJoining) dirty.current = false;
+    const merged = wasJoining && mine.size ? new Set([...stored.slots, ...mine]) : null;
+    dispatch({ type: 'load', slots: merged ?? stored.slots });
+    if (!merged) {
+      setMode(stored.slots.size ? 'group' : 'mine');
+      return;
+    }
+    // `save` is already 'saving': every painted mark sets it in `onPaint`.
+    pending.current = { name: stored.name, slots: merged };
+    flush();
+  }, [stored, mine, flush]);
 
   useEffect(() => {
     if (!myName) return;
@@ -120,6 +135,14 @@ export const EventView = ({ id, onNew }: Props) => {
     };
   }, [flush]);
 
+  // A visitor's draft lives in memory only: closing loses it unless they join first.
+  useEffect(() => {
+    if (myName || !mine.size) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [myName, mine.size]);
+
   if (board === undefined && !error) return <section aria-busy="true" className={`${CARD} h-[640px] max-h-full`} />;
   if (!board) {
     return error ? (
@@ -131,7 +154,10 @@ export const EventView = ({ id, onNew }: Props) => {
 
   const { event } = board;
   const me: Person | null = stored ? { ...stored, slots: mine } : null;
-  const everyone = board.people.map((p) => (me && sameName(p.name, me.name) ? me : p));
+  const roster = board.people.map((p) => (me && sameName(p.name, me.name) ? me : p));
+  /** Uncommitted marks count locally as "You" until joining saves them. */
+  const draft: Person | null = !me && mine.size ? { name: 'You', slots: mine, optional: false, vote: null } : null;
+  const everyone = draft ? [...roster, draft] : roster;
   const responders = answered(everyone);
   const hasOptional = responders.some((p) => p.optional);
   const includeOptional = hasOptional && withOptional;
@@ -152,7 +178,8 @@ export const EventView = ({ id, onNew }: Props) => {
         ? commonSlots(everyone.filter((p) => picked.has(p.name)))
         : null;
   const spotlight = hoverWindow ? 'window' : highlight ? 'person' : null;
-  const painting = mode === 'mine' && me !== null;
+  /** Visitors paint the group grid; joining adds the My-times view. */
+  const gridMode = me ? mode : 'group';
 
   const fillCalendar = async () => {
     if (!board || cal === 'loading') return;
@@ -197,6 +224,7 @@ export const EventView = ({ id, onNew }: Props) => {
   const onJoin = async (input: JoinInput) => {
     // Reset before the write: the local snapshot can arrive before `join` resolves.
     loadedFor.current = null;
+    joining.current = true;
     await join(id, input);
     setAway(false);
   };
@@ -317,24 +345,22 @@ export const EventView = ({ id, onNew }: Props) => {
                 )}
               </>
             ) : (
-              painting && <span className="mr-1 hidden truncate text-[13px] text-ink-3 sm:inline">Drag to mark when you’re free</span>
+              <span className="mr-1 hidden truncate text-[13px] text-ink-3 sm:inline">Drag to mark when you’re free</span>
             )}
-            {painting && (
-              <Button variant="ghost" disabled={!mine.size} onClick={() => onPaint([...mine], false)}>
-                Clear
-              </Button>
-            )}
+            <Button variant="ghost" disabled={!mine.size} onClick={() => onPaint([...mine], false)}>
+              Clear
+            </Button>
           </div>
         </div>
         <HeatGrid
           view={view}
-          mode={painting ? 'mine' : 'group'}
+          mode={gridMode}
           counts={counts}
           total={group.length}
           mine={mine}
           highlight={highlight}
           spotlight={spotlight}
-          onPaint={painting ? onPaint : null}
+          onPaint={onPaint}
           onHover={setHoverSlot}
         />
       </div>
@@ -363,7 +389,7 @@ export const EventView = ({ id, onNew }: Props) => {
         </div>
         <div className="flex min-h-0 flex-1 flex-col border-t border-line pt-4">
           <People
-            people={everyone}
+            people={roster}
             me={me?.name ?? null}
             selected={picked}
             onToggle={togglePicked}
