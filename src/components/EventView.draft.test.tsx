@@ -62,7 +62,7 @@ test('joining commits the draft at once', async () => {
   emit(boardOf([], null));
   paint('2026-10-05|540');
   joinAs('Zed');
-  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, vote: null }], 'Zed'));
+  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, votes: [] }], 'Zed'));
   await screen.findByText('My times');
   expect(join).toHaveBeenCalledWith('e1', { name: 'Zed', password: '', optional: false });
   expect(saveSlots).toHaveBeenCalledTimes(1);
@@ -73,7 +73,7 @@ test('joining with an empty draft writes nothing', async () => {
   render(<EventView id="e1" onNew={vi.fn()} />);
   emit(boardOf([], null));
   joinAs('Zed');
-  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, vote: null }], 'Zed'));
+  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, votes: [] }], 'Zed'));
   await screen.findByText('My times');
   expect(join).toHaveBeenCalledTimes(1);
   expect(saveSlots).not.toHaveBeenCalled();
@@ -82,7 +82,7 @@ test('joining with an empty draft writes nothing', async () => {
 test('joining an existing name saves the union of draft and stored slots', async () => {
   vi.mocked(join).mockResolvedValueOnce('Ava Chen');
   render(<EventView id="e1" onNew={vi.fn()} />);
-  const ava = { name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, vote: null };
+  const ava = { name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, votes: [] };
   emit(boardOf([ava], null));
   paint('2026-10-05|570');
   joinAs('Ava Chen');
@@ -94,7 +94,7 @@ test('joining an existing name saves the union of draft and stored slots', async
 test('the union commit is the only write: no stale autosave follows the join', async () => {
   vi.mocked(join).mockResolvedValueOnce('Ava Chen');
   render(<EventView id="e1" onNew={vi.fn()} />);
-  const ava = { name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, vote: null };
+  const ava = { name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, votes: [] };
   emit(boardOf([ava], null));
   paint('2026-10-05|570');
   joinAs('Ava Chen');
@@ -109,7 +109,7 @@ test('the union commit is the only write: no stale autosave follows the join', a
 test('painting then clearing before join never wipes stored slots', async () => {
   vi.mocked(join).mockResolvedValueOnce('Ava Chen');
   render(<EventView id="e1" onNew={vi.fn()} />);
-  const ava = { name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, vote: null };
+  const ava = { name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, votes: [] };
   emit(boardOf([ava], null));
   paint('2026-10-05|570');
   paint('2026-10-05|570');
@@ -142,7 +142,7 @@ test('closing after joining never warns', async () => {
   emit(boardOf([], null));
   paint('2026-10-05|540');
   joinAs('Zed');
-  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, vote: null }], 'Zed'));
+  emit(boardOf([{ name: 'Zed', slots: new Set<string>(), optional: false, votes: [] }], 'Zed'));
   await screen.findByText('My times');
   const e = new Event('beforeunload', { cancelable: true });
   window.dispatchEvent(e);
@@ -153,7 +153,7 @@ test('a remembered name loads stored slots instead of a draft', async () => {
   render(<EventView id="e1" onNew={vi.fn()} />);
   emit(
     boardOf(
-      [{ name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, vote: null }],
+      [{ name: 'Ava Chen', slots: new Set(['2026-10-05|540']), optional: false, votes: [] }],
       'Ava Chen',
     ),
   );

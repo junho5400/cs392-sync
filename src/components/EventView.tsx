@@ -157,7 +157,7 @@ export const EventView = ({ id, onNew }: Props) => {
   const me: Person | null = stored ? { ...stored, slots: mine } : null;
   const roster = board.people.map((p) => (me && sameName(p.name, me.name) ? me : p));
   /** Uncommitted marks count locally as "You" until joining saves them. */
-  const draft: Person | null = !me && mine.size ? { name: 'You', slots: mine, optional: false, vote: null } : null;
+  const draft: Person | null = !me && mine.size ? { name: 'You', slots: mine, optional: false, votes: [] } : null;
   const everyone = draft ? [...roster, draft] : roster;
   const responders = answered(everyone);
   const hasOptional = responders.some((p) => p.optional);
