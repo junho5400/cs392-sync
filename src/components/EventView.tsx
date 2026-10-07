@@ -30,6 +30,7 @@ import {
   freeKeys,
   paint,
   viewOf,
+  VOTE_LIMIT,
   voteKey,
   windowKeys,
   type Window,
@@ -167,8 +168,18 @@ export const EventView = ({ id, onNew }: Props) => {
   const ranked = bestWindows(event, group);
   const votable = ranked.complete && ranked.windows.length >= 2;
   const open = new Set(votable ? ranked.windows.map(voteKey) : []);
+  const openVotes = (p: Person) => p.votes.filter((key) => open.has(key));
   const tallies = new Map<string, number>();
-  for (const p of group) if (p.vote && open.has(p.vote)) tallies.set(p.vote, (tallies.get(p.vote) ?? 0) + 1);
+  const voters = new Map<string, string[]>();
+  for (const p of everyone) {
+    for (const key of openVotes(p)) {
+      tallies.set(key, (tallies.get(key) ?? 0) + 1);
+      const names = voters.get(key) ?? [];
+      names.push(p.name);
+      voters.set(key, names);
+    }
+  }
+  const allVoted = everyone.length > 0 && everyone.every((p) => openVotes(p).length > 0);
   const slotsOf = (name: string) => everyone.find((p) => p.name === name)?.slots ?? new Set<string>();
   const highlight = hoverWindow
     ? new Set(windowKeys(hoverWindow))
@@ -237,12 +248,16 @@ export const EventView = ({ id, onNew }: Props) => {
     setMode('group');
   };
 
-  const onVote = (vote: string | null) =>
-    me &&
-    saveVote(id, me.name, vote).then(
+  const onVote = (key: string) => {
+    if (!me) return;
+    const cur = openVotes(me);
+    const next = cur.includes(key) ? cur.filter((k) => k !== key) : cur.length >= VOTE_LIMIT ? null : [...cur, key];
+    if (!next) return;
+    saveVote(id, me.name, next).then(
       () => setError(''),
       (err: Error) => setError(err.message),
     );
+  };
 
   const readout = hoverSlot && <Readout slot={hoverSlot} view={view} people={group} />;
 
@@ -374,7 +389,10 @@ export const EventView = ({ id, onNew }: Props) => {
           onWithOptional={setWithOptional}
           votable={votable}
           tallies={tallies}
-          myVote={me?.vote ?? null}
+          voters={voters}
+          myVotes={me ? openVotes(me) : []}
+          me={me?.name ?? null}
+          allVoted={allVoted}
           onVote={me ? onVote : null}
           onHover={setHoverWindow}
         />

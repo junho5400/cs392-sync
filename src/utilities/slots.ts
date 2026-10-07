@@ -207,6 +207,18 @@ export const commonSlots = (people: Person[]) => {
 
 export const voteKey = (w: Pick<Window, 'date' | 'start' | 'end'>) => `${w.date}|${w.start}|${w.end}`;
 
+/** How many times one person can pick. */
+export const VOTE_LIMIT = 3;
+
+/** Keep time order until `on`, then the most votes first. A tie stays in the earlier order. */
+export const byVotes = <T>(items: T[], count: (item: T) => number, on: boolean) =>
+  on
+    ? items
+        .map((item, i) => ({ item, i, n: count(item) }))
+        .sort((a, b) => b.n - a.n || a.i - b.i)
+        .map((row) => row.item)
+    : items;
+
 /** People who count for best times and the heatmap: the required ones, or everyone. */
 export const counted = <P extends Pick<Person, 'optional'>>(people: P[], withOptional: boolean) =>
   people.filter((p) => withOptional || !p.optional);

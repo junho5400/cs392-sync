@@ -30,8 +30,8 @@ export interface Person {
   slots: Set<string>;
   /** Picked by the person on joining: a time can be chosen without them. */
   optional: boolean;
-  /** A `voteKey`, or null. */
-  vote: string | null;
+  /** Up to three `voteKey`s, oldest first. */
+  votes: string[];
 }
 
 /** A grid cell as shown to this viewer: column id and minutes in the view zone. */

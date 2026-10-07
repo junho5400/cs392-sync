@@ -67,11 +67,17 @@ const rememberName = (id: string, name: string) => {
   }
 };
 
+/** A list of up to three keys. Older boards stored one string. */
+const readVotes = (vote: unknown): string[] => {
+  const list = Array.isArray(vote) ? vote : typeof vote === 'string' && vote ? [vote] : [];
+  return list.filter((v): v is string => typeof v === 'string' && v.length > 0).slice(0, 3);
+};
+
 const toPerson = (d: DocumentData): Person => ({
   name: d.name,
   slots: new Set(d.slots ?? []),
   optional: d.optional === true,
-  vote: d.vote ?? null,
+  votes: readVotes(d.vote),
 });
 
 const fail = (err: unknown, fallback: string): never => {
@@ -160,7 +166,7 @@ export const join = async (id: string, input: JoinInput): Promise<string> => {
     const batch = writeBatch(db);
     if (!existing.exists()) {
       const hasPassword = input.password.length > 0;
-      batch.set(ref, { name, slots: [], optional: input.optional, vote: null, hasPassword, uid });
+      batch.set(ref, { name, slots: [], optional: input.optional, vote: [], hasPassword, uid });
       if (hasPassword) {
         batch.set(doc(db, 'events', id, 'secrets', personKey(name)), { hash: await hash(id, name, input.password) });
       }
@@ -199,9 +205,9 @@ export const saveSlots = async (id: string, name: string, slots: Set<string>) =>
   }
 };
 
-export const saveVote = async (id: string, name: string, vote: string | null) => {
+export const saveVote = async (id: string, name: string, votes: string[]) => {
   try {
-    await updateDoc(personRef(id, name), { vote });
+    await updateDoc(personRef(id, name), { vote: votes.slice(0, 3) });
   } catch (err) {
     fail(err, 'Could not save your pick.');
   }
